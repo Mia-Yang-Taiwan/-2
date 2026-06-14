@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="錦禾叫貨" />
   <meta name="theme-color" content="#7c512e" />
-  <title>錦禾中醫倉庫叫貨系統</title>
+  <title>錦禾中醫倉庫叫貨</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #f3ebe2; -webkit-tap-highlight-color: transparent; font-family: 'Noto Sans TC','PingFang TC',system-ui,sans-serif; }
@@ -33,21 +33,21 @@ const DEFAULT_ZONES = [
 ];
 
 const DEFAULT_PRODUCTS = [
-  { id: 1,  name: "處方單",          unit: "本",  note: "", zone: "A", order: 1 },
-  { id: 2,  name: "掛號單",          unit: "本",  note: "", zone: "A", order: 2 },
-  { id: 3,  name: "粉藥包藥紙",      unit: "包",  note: "", zone: "A", order: 3 },
-  { id: 4,  name: "水藥包藥紙",      unit: "包",  note: "", zone: "A", order: 4 },
-  { id: 5,  name: "3M膚色膠布",      unit: "捲",  note: "", zone: "A", order: 5 },
-  { id: 6,  name: "黃土艾炭",        unit: "箱",  note: "", zone: "A", order: 6 },
+  { id: 1,  name: "處方單",          unit: "箱",  note: "", zone: "A", order: 1 },
+  { id: 2,  name: "掛號單",          unit: "箱",  note: "", zone: "A", order: 2 },
+  { id: 3,  name: "粉藥包藥紙",      unit: "箱",  note: "", zone: "A", order: 3 },
+  { id: 4,  name: "水藥包藥紙",      unit: "箱",  note: "", zone: "A", order: 4 },
+  { id: 5,  name: "3M膠布",         unit: "盒",  note: "", zone: "A", order: 5 },
+  { id: 6,  name: "黃土艾炭",        unit: "罐",  note: "", zone: "A", order: 6 },
   { id: 7,  name: "馬桶坐墊消毒液",  unit: "瓶",  note: "", zone: "A", order: 7 },
   { id: 8,  name: "泡沫給皂液",      unit: "瓶",  note: "", zone: "A", order: 8 },
   { id: 9,  name: "不織布",          unit: "包",  note: "", zone: "A", order: 9 },
   { id: 10, name: "彈性繃帶7CM",     unit: "捲",  note: "", zone: "A", order: 10 },
   { id: 11, name: "網狀繃帶4號",     unit: "捲",  note: "", zone: "A", order: 11 },
   { id: 12, name: "網狀繃帶5號",     unit: "捲",  note: "", zone: "A", order: 12 },
-  { id: 13, name: "神效（乾藥布）",  unit: "包",  note: "", zone: "A", order: 13 },
-  { id: 14, name: "舒痛寧（水性藥布）", unit: "包", note: "", zone: "A", order: 14 },
-  { id: 15, name: "十字洞巾",        unit: "個",  note: "", zone: "A", order: 15 },
+  { id: 13, name: "神效（乾藥布）",  unit: "箱",  note: "", zone: "A", order: 13 },
+  { id: 14, name: "舒痛寧（水性藥布）", unit: "箱", note: "", zone: "A", order: 14 },
+  { id: 15, name: "十字洞巾",        unit: "箱",  note: "", zone: "A", order: 15 },
   { id: 16, name: "棉球",            unit: "包",  note: "", zone: "A", order: 16 },
   { id: 17, name: "拔罐杯3號",       unit: "個",  note: "", zone: "B", order: 1 },
   { id: 18, name: "拔罐杯4號",       unit: "個",  note: "", zone: "B", order: 2 },
@@ -81,9 +81,9 @@ const DEFAULT_PRODUCTS = [
   { id: 46, name: "針頭23G 藍",      unit: "盒",  note: "", zone: "C", order: 14 },
   { id: 47, name: "針頭22G 黑",      unit: "盒",  note: "", zone: "C", order: 15 },
   { id: 48, name: "針頭24G 紅",      unit: "盒",  note: "", zone: "C", order: 16 },
-  { id: 49, name: "扁針1號",         unit: "盒",  note: "", zone: "C", order: 17 },
-  { id: 50, name: "扁針2號",         unit: "盒",  note: "", zone: "C", order: 18 },
-  { id: 51, name: "扁針3號",         unit: "盒",  note: "", zone: "C", order: 19 },
+  { id: 49, name: "扁針1號",         unit: "支",  note: "", zone: "C", order: 17 },
+  { id: 50, name: "扁針2號",         unit: "支",  note: "", zone: "C", order: 18 },
+  { id: 51, name: "扁針3號",         unit: "支",  note: "", zone: "C", order: 19 },
   { id: 52, name: "夾鏈袋1號",       unit: "包",  note: "", zone: "D", order: 1 },
   { id: 53, name: "夾鏈袋2號",       unit: "包",  note: "", zone: "D", order: 2 },
   { id: 54, name: "夾鏈袋3號",       unit: "包",  note: "", zone: "D", order: 3 },
@@ -110,10 +110,10 @@ const DEFAULT_PRODUCTS = [
   { id: 75, name: "濾網",            unit: "個",  note: "", zone: "E", order: 9 },
   { id: 76, name: "地板清潔液",      unit: "瓶",  note: "", zone: "E", order: 10 },
   { id: 77, name: "浮針",            unit: "盒",  note: "", zone: "E", order: 11 },
-  { id: 78, name: "韓式美顏針(紅)",  unit: "盒",  note: "", zone: "E", order: 12 },
-  { id: 79, name: "韓式美顏針(淺綠)", unit: "盒", note: "", zone: "E", order: 13 },
-  { id: 80, name: "韓式美顏針(綠)",  unit: "盒",  note: "", zone: "E", order: 14 },
-  { id: 81, name: "韓式美顏針(藍)",  unit: "盒",  note: "", zone: "E", order: 15 },
+  { id: 78, name: "韓式美顏針（紅）",  unit: "盒",  note: "", zone: "E", order: 12 },
+  { id: 79, name: "韓式美顏針（淺）", unit: "盒", note: "", zone: "E", order: 13 },
+  { id: 80, name: "韓式美顏針（綠）",  unit: "盒",  note: "", zone: "E", order: 14 },
+  { id: 81, name: "韓式美顏針（藍）",  unit: "盒",  note: "", zone: "E", order: 15 },
 ];
 
 // qty 1..50
