@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="錦禾叫貨" />
+  <meta name="theme-color" content="#7c512e" />
+  <title>錦禾中醫叫貨系統</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f3ebe2; -webkit-tap-highlight-color: transparent; font-family: 'Noto Sans TC','PingFang TC',system-ui,sans-serif; }
+    #root { max-width: 480px; margin: 0 auto; }
+    .drag-over { outline: 2px dashed #7c512e; outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useRef, useCallback } = React;
+
+// ── Default Data ─────────────────────────────────────────────────────────────
+const DEFAULT_ZONES = [
+  { id: "A", name: "A 區" },
+  { id: "B", name: "B 區" },
+  { id: "C", name: "C 區" },
+  { id: "D", name: "D 區" },
+  { id: "E", name: "E 區" },
+];
+
+const DEFAULT_PRODUCTS = [
+  { id: 1,  name: "處方單",          unit: "本",  note: "", zone: "A", order: 1 },
+  { id: 2,  name: "掛號單",          unit: "本",  note: "", zone: "A", order: 2 },
+  { id: 3,  name: "粉藥包藥紙",      unit: "包",  note: "", zone: "A", order: 3 },
+  { id: 4,  name: "水藥包藥紙",      unit: "包",  note: "", zone: "A", order: 4 },
+  { id: 5,  name: "3M膚色膠布",      unit: "捲",  note: "", zone: "A", order: 5 },
+  { id: 6,  name: "黃土艾炭",        unit: "箱",  note: "", zone: "A", order: 6 },
+  { id: 7,  name: "馬桶坐墊消毒液",  unit: "瓶",  note: "", zone: "A", order: 7 },
+  { id: 8,  name: "泡沫給皂液",      unit: "瓶",  note: "", zone: "A", order: 8 },
+  { id: 9,  name: "不織布",          unit: "包",  note: "", zone: "A", order: 9 },
+  { id: 10, name: "彈性繃帶7CM",     unit: "捲",  note: "", zone: "A", order: 10 },
+  { id: 11, name: "網狀繃帶4號",     unit: "捲",  note: "", zone: "A", order: 11 },
+  { id: 12, name: "網狀繃帶5號",     unit: "捲",  note: "", zone: "A", order: 12 },
+  { id: 13, name: "神效（乾藥布）",  unit: "包",  note: "", zone: "A", order: 13 },
+  { id: 14, name: "舒痛寧（水性藥布）", unit: "包", note: "", zone: "A", order: 14 },
+  { id: 15, name: "十字洞巾",        unit: "個",  note: "", zone: "A", order: 15 },
+  { id: 16, name: "棉球",            unit: "包",  note: "", zone: "A", order: 16 },
+  { id: 17, name: "拔罐杯3號",       unit: "個",  note: "", zone: "B", order: 1 },
+  { id: 18, name: "拔罐杯4號",       unit: "個",  note: "", zone: "B", order: 2 },
+  { id: 19, name: "背膠",            unit: "捲",  note: "", zone: "B", order: 3 },
+  { id: 20, name: "肌內效貼布",      unit: "捲",  note: "", zone: "B", order: 4 },
+  { id: 21, name: "藥膏罐(小)",      unit: "個",  note: "", zone: "B", order: 5 },
+  { id: 22, name: "藥膏罐(大)",      unit: "個",  note: "", zone: "B", order: 6 },
+  { id: 23, name: "鋁罐",            unit: "個",  note: "", zone: "B", order: 7 },
+  { id: 24, name: "清脂激酶罐",      unit: "個",  note: "", zone: "B", order: 8 },
+  { id: 25, name: "紅頭藥罐 大",     unit: "個",  note: "", zone: "B", order: 9 },
+  { id: 26, name: "紅頭藥罐 小",     unit: "個",  note: "", zone: "B", order: 10 },
+  { id: 27, name: "金頭藥罐 大",     unit: "個",  note: "", zone: "B", order: 11 },
+  { id: 28, name: "金頭藥罐 小",     unit: "個",  note: "", zone: "B", order: 12 },
+  { id: 29, name: "口罩",            unit: "盒",  note: "", zone: "B", order: 13 },
+  { id: 30, name: "三黃粉",          unit: "包",  note: "", zone: "B", order: 14 },
+  { id: 31, name: "乳膠手套S號",     unit: "盒",  note: "", zone: "B", order: 15 },
+  { id: 32, name: "乳膠手套M號",     unit: "盒",  note: "", zone: "B", order: 16 },
+  { id: 33, name: "針4005",          unit: "盒",  note: "", zone: "C", order: 1 },
+  { id: 34, name: "針4205",          unit: "盒",  note: "", zone: "C", order: 2 },
+  { id: 35, name: "針3410",          unit: "盒",  note: "", zone: "C", order: 3 },
+  { id: 36, name: "針3215",          unit: "盒",  note: "", zone: "C", order: 4 },
+  { id: 37, name: "針2830",          unit: "盒",  note: "", zone: "C", order: 5 },
+  { id: 38, name: "針2840",          unit: "盒",  note: "", zone: "C", order: 6 },
+  { id: 39, name: "推針A2820",       unit: "盒",  note: "", zone: "C", order: 7 },
+  { id: 40, name: "推針A3015",       unit: "盒",  note: "", zone: "C", order: 8 },
+  { id: 41, name: "清鈴針（橘）",    unit: "盒",  note: "", zone: "C", order: 9 },
+  { id: 42, name: "磁珠",            unit: "包",  note: "", zone: "C", order: 10 },
+  { id: 43, name: "耳針",            unit: "盒",  note: "", zone: "C", order: 11 },
+  { id: 44, name: "羊腸線C15 3-0",   unit: "盒",  note: "", zone: "C", order: 12 },
+  { id: 45, name: "羊腸線C15 4-0",   unit: "盒",  note: "", zone: "C", order: 13 },
+  { id: 46, name: "針頭23G 藍",      unit: "盒",  note: "", zone: "C", order: 14 },
+  { id: 47, name: "針頭22G 黑",      unit: "盒",  note: "", zone: "C", order: 15 },
+  { id: 48, name: "針頭24G 紅",      unit: "盒",  note: "", zone: "C", order: 16 },
+  { id: 49, name: "扁針1號",         unit: "盒",  note: "", zone: "C", order: 17 },
+  { id: 50, name: "扁針2號",         unit: "盒",  note: "", zone: "C", order: 18 },
+  { id: 51, name: "扁針3號",         unit: "盒",  note: "", zone: "C", order: 19 },
+  { id: 52, name: "夾鏈袋1號",       unit: "包",  note: "", zone: "D", order: 1 },
+  { id: 53, name: "夾鏈袋2號",       unit: "包",  note: "", zone: "D", order: 2 },
+  { id: 54, name: "夾鏈袋3號",       unit: "包",  note: "", zone: "D", order: 3 },
+  { id: 55, name: "夾鏈袋4號",       unit: "包",  note: "", zone: "D", order: 4 },
+  { id: 56, name: "夾鏈袋5號",       unit: "包",  note: "", zone: "D", order: 5 },
+  { id: 57, name: "垃圾袋（中）",    unit: "包",  note: "", zone: "D", order: 6 },
+  { id: 58, name: "垃圾袋（大）",    unit: "包",  note: "", zone: "D", order: 7 },
+  { id: 59, name: "錦禾logo袋",      unit: "包",  note: "", zone: "D", order: 8 },
+  { id: 60, name: "優活長版衛生紙",  unit: "箱",  note: "", zone: "D", order: 9 },
+  { id: 61, name: "五月花",          unit: "箱",  note: "", zone: "D", order: 10 },
+  { id: 62, name: "擦手紙",          unit: "箱",  note: "", zone: "D", order: 11 },
+  { id: 63, name: "護膚墊",          unit: "包",  note: "", zone: "D", order: 12 },
+  { id: 64, name: "保鮮盒",          unit: "個",  note: "", zone: "D", order: 13 },
+  { id: 65, name: "紙杯",            unit: "條",  note: "", zone: "D", order: 14 },
+  { id: 66, name: "酒精",            unit: "箱",  note: "一箱6罐", zone: "D", order: 15 },
+  { id: 67, name: "丹田灸網子",      unit: "個",  note: "", zone: "E", order: 1 },
+  { id: 68, name: "電針線",          unit: "條",  note: "", zone: "E", order: 2 },
+  { id: 69, name: "電針線插座",      unit: "個",  note: "", zone: "E", order: 3 },
+  { id: 70, name: "紅外線燈泡",      unit: "個",  note: "", zone: "E", order: 4 },
+  { id: 71, name: "薰針機管子",      unit: "個",  note: "", zone: "E", order: 5 },
+  { id: 72, name: "列表機墨水帶（藥局用）", unit: "個", note: "", zone: "E", order: 6 },
+  { id: 73, name: "列表機墨水帶（櫃檯用）", unit: "個", note: "", zone: "E", order: 7 },
+  { id: 74, name: "垃圾袋（瓶罐）",  unit: "包",  note: "", zone: "E", order: 8 },
+  { id: 75, name: "濾網",            unit: "個",  note: "", zone: "E", order: 9 },
+  { id: 76, name: "地板清潔液",      unit: "瓶",  note: "", zone: "E", order: 10 },
+  { id: 77, name: "浮針",            unit: "盒",  note: "", zone: "E", order: 11 },
+  { id: 78, name: "韓式美顏針(紅)",  unit: "盒",  note: "", zone: "E", order: 12 },
+  { id: 79, name: "韓式美顏針(淺綠)", unit: "盒", note: "", zone: "E", order: 13 },
+  { id: 80, name: "韓式美顏針(綠)",  unit: "盒",  note: "", zone: "E", order: 14 },
+  { id: 81, name: "韓式美顏針(藍)",  unit: "盒",  note: "", zone: "E", order: 15 },
+];
+
+// qty 1..50
+const QTY_OPTIONS = [0, ...Array.from({length: 50}, (_, i) => i + 1)];
+
+const SK_PRODUCTS = "clinic_products_v3";
+const SK_ORDERS   = "clinic_orders_v3";
+const SK_ZONES    = "clinic_zones_v3";
+
+function load(key, fb) {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fb; } catch { return fb; }
+}
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+// ── Colours ──────────────────────────────────────────────────────────────────
+const C = {
+  bg: "#f3ebe2", surface: "#e8e0d6", border: "#c4b8aa",
+  header: "#7c512e", addBtn: "#556250", primary: "#7c512e",
+  accent: "#9a6b3a", danger: "#DC4C3E",
+  text: "#2e1f0f", sub: "#6b5740", light: "#cac0b5",
+  selected: "#b8c4b2", rowA: "#ddd0c0", rowB: "#939c89",
+};
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const IcoSearch   = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+const IcoPlus     = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const IcoEdit     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const IcoTrash    = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+const IcoCheck    = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
+const IcoExport   = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+const IcoHistory  = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+const IcoList     = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
+const IcoSettings = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+const IcoCopy     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+const IcoInfo     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+const IcoUp       = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>;
+const IcoDown     = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>;
+const IcoDrag     = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/></svg>;
+const IcoBack     = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>;
+
+const inputStyle = {
+  width: "100%", boxSizing: "border-box",
+  border: `1.5px solid ${C.border}`, borderRadius: 10,
+  padding: "10px 12px", fontSize: 15, color: C.text,
+  background: C.surface, outline: "none", fontFamily: "inherit",
+};
+const btnPrimary = {
+  background: C.primary, color: "#fff", border: "none",
+  borderRadius: 12, padding: "13px 0",
+  fontSize: 15, fontWeight: 700, cursor: "pointer", width: "100%",
+};
+
+// ── Helper: generate order id ─────────────────────────────────────────────────
+function genOrderId(existingOrders) {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const label = `${month}月`;
+  const sameMonth = existingOrders.filter(o => o.monthLabel === label);
+  return sameMonth.length === 0 ? `${label}叫貨` : `${label}追加`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, margin:"0 auto", padding:"20px 20px 36px", maxHeight:"85vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <span style={{ fontWeight:700, fontSize:17, color:C.text }}>{title}</span>
+          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:22, color:C.sub, cursor:"pointer", lineHeight:1 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function Toast({ msg, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2000); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", background:C.text, color:"#fff", padding:"10px 22px", borderRadius:24, fontSize:14, fontWeight:600, zIndex:300, boxShadow:"0 4px 16px rgba(0,0,0,0.2)", whiteSpace:"nowrap" }}>{msg}</div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+function App() {
+  const [products, setProducts] = useState(() => load(SK_PRODUCTS, DEFAULT_PRODUCTS));
+  const [zones,    setZones]    = useState(() => load(SK_ZONES, DEFAULT_ZONES));
+  const [orders,   setOrders]   = useState(() => load(SK_ORDERS, []));
+  const [qty,      setQty]      = useState({});
+  const [search,   setSearch]   = useState("");
+  const [tab,      setTab]      = useState("order");
+  const [toast,    setToast]    = useState("");
+
+  // manage sub-state
+  const [manageView, setManageView] = useState("zones"); // zones | products
+  const [activeZone, setActiveZone] = useState(null);
+  const [dragId,     setDragId]     = useState(null);
+  const [longPressId, setLongPressId] = useState(null);
+  const longPressTimer = useRef(null);
+
+  // modals
+  const [showExport,   setShowExport]   = useState(false);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [editItem,     setEditItem]     = useState(null);
+  const [deleteItem,   setDeleteItem]   = useState(null);
+  const [showOrderDetail, setShowOrderDetail] = useState(null);
+  const [showAddZone,  setShowAddZone]  = useState(false);
+  const [deleteZone,   setDeleteZone]   = useState(null);
+  const [editZone,     setEditZone]     = useState(null);
+
+  // forms
+  const [form,     setForm]     = useState({ name:"", unit:"", note:"", zone:"A" });
+  const [zoneForm, setZoneForm] = useState({ name:"" });
+
+  useEffect(() => save(SK_PRODUCTS, products), [products]);
+  useEffect(() => save(SK_ORDERS,   orders),   [orders]);
+  useEffect(() => save(SK_ZONES,    zones),    [zones]);
+
+  // ── Sorted products for ORDER tab (by zone order, then item order) ──────────
+  const orderedProducts = useMemo(() => {
+    const zoneOrder = zones.map(z => z.id);
+    return [...products].sort((a, b) => {
+      const za = zoneOrder.indexOf(a.zone);
+      const zb = zoneOrder.indexOf(b.zone);
+      if (za !== zb) return za - zb;
+      return (a.order || 0) - (b.order || 0);
+    });
+  }, [products, zones]);
+
+  const filteredProducts = useMemo(() =>
+    orderedProducts.filter(p => p.name.includes(search)),
+    [orderedProducts, search]
+  );
+
+  const selectedItems = useMemo(() =>
+    orderedProducts.filter(p => qty[p.id] > 0).map(p => ({ ...p, qty: qty[p.id] })),
+    [orderedProducts, qty]
+  );
+
+  const exportText = useMemo(() =>
+    selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
+    [selectedItems]
+  );
+
+  // Products in active zone for manage tab
+  const zoneProducts = useMemo(() => {
+    if (!activeZone) return [];
+    return products
+      .filter(p => p.zone === activeZone)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [products, activeZone]);
+
+  // ── Order submit ──────────────────────────────────────────────────────────────
+  function handleSubmitOrder() {
+    if (selectedItems.length === 0) { setToast("請先選擇品項數量"); return; }
+    const now = new Date();
+    const monthLabel = `${now.getMonth() + 1}月`;
+    const id = genOrderId(orders);
+    const order = {
+      id,
+      monthLabel,
+      time: now.toLocaleString("zh-TW", { hour12: false }),
+      items: selectedItems.map(i => ({ name: i.name, qty: i.qty, unit: i.unit })),
+    };
+    setOrders(prev => [order, ...prev]);
+    setQty({});
+    setShowExport(false);
+    setToast("叫貨單已儲存！");
+  }
+
+  function handleCopyExport() {
+    if (exportText) {
+      navigator.clipboard.writeText(exportText).then(() => setToast("已複製到剪貼簿！")).catch(() => setToast("請手動複製"));
+    }
+  }
+
+  // ── Product CRUD ──────────────────────────────────────────────────────────────
+  function openAdd() {
+    const defaultZone = activeZone || (zones[0]?.id || "A");
+    setForm({ name:"", unit:"", note:"", zone: defaultZone });
+    setShowAdd(true);
+  }
+  function openEdit(p) {
+    setForm({ name: p.name, unit: p.unit, note: p.note, zone: p.zone || zones[0]?.id || "A" });
+    setEditItem(p);
+  }
+
+  function saveAdd() {
+    if (!form.name.trim()) { setToast("請輸入品名"); return; }
+    const zoneProds = products.filter(p => p.zone === form.zone);
+    const maxOrder = zoneProds.reduce((m, p) => Math.max(m, p.order || 0), 0);
+    const newP = { id: Date.now(), name: form.name.trim(), unit: form.unit.trim(), note: form.note.trim(), zone: form.zone, order: maxOrder + 1 };
+    setProducts(prev => [...prev, newP]);
+    setShowAdd(false);
+    setToast("品項已新增！");
+  }
+
+  function saveEdit() {
+    if (!form.name.trim()) { setToast("請輸入品名"); return; }
+    setProducts(prev => prev.map(p => p.id === editItem.id
+      ? { ...p, name: form.name.trim(), unit: form.unit.trim(), note: form.note.trim(), zone: form.zone }
+      : p
+    ));
+    setEditItem(null);
+    setToast("已更新！");
+  }
+
+  function confirmDelete() {
+    setProducts(prev => prev.filter(p => p.id !== deleteItem.id));
+    setQty(prev => { const n = { ...prev }; delete n[deleteItem.id]; return n; });
+    setDeleteItem(null);
+    setToast("已刪除");
+  }
+
+  // ── Reorder within zone ───────────────────────────────────────────────────────
+  function moveItem(id, dir) {
+    const zProds = [...zoneProducts];
+    const idx = zProds.findIndex(p => p.id === id);
+    if (idx < 0) return;
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= zProds.length) return;
+    const newOrder = zProds[idx].order;
+    const swapOrder = zProds[swapIdx].order;
+    setProducts(prev => prev.map(p => {
+      if (p.id === zProds[idx].id) return { ...p, order: swapOrder };
+      if (p.id === zProds[swapIdx].id) return { ...p, order: newOrder };
+      return p;
+    }));
+  }
+
+  // ── Drag reorder ──────────────────────────────────────────────────────────────
+  function handleDragStart(id) { setDragId(id); }
+  function handleDragOver(e, id) {
+    e.preventDefault();
+    if (dragId === null || dragId === id) return;
+    const from = zoneProducts.findIndex(p => p.id === dragId);
+    const to   = zoneProducts.findIndex(p => p.id === id);
+    if (from < 0 || to < 0) return;
+    const reordered = [...zoneProducts];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    const updated = reordered.map((p, i) => ({ ...p, order: i + 1 }));
+    setProducts(prev => prev.map(p => {
+      const u = updated.find(u => u.id === p.id);
+      return u ? u : p;
+    }));
+    setDragId(id);
+  }
+  function handleDragEnd() { setDragId(null); }
+
+  // ── Long press (touch) ────────────────────────────────────────────────────────
+  function handleTouchStart(id) {
+    longPressTimer.current = setTimeout(() => {
+      setLongPressId(id);
+    }, 500);
+  }
+  function handleTouchEnd() {
+    clearTimeout(longPressTimer.current);
+  }
+
+  // ── Zone CRUD ──────────────────────────────────────────────────────────────────
+  function saveAddZone() {
+    if (!zoneForm.name.trim()) { setToast("請輸入區域名稱"); return; }
+    const id = Date.now().toString(36).toUpperCase().slice(-3);
+    setZones(prev => [...prev, { id, name: zoneForm.name.trim() }]);
+    setZoneForm({ name: "" });
+    setShowAddZone(false);
+    setToast("區域已新增！");
+  }
+
+  function confirmDeleteZone() {
+    const zid = deleteZone.id;
+    // move products in deleted zone to first remaining zone
+    const remaining = zones.filter(z => z.id !== zid);
+    const fallback = remaining[0]?.id || null;
+    if (fallback) {
+      setProducts(prev => prev.map(p => p.zone === zid ? { ...p, zone: fallback } : p));
+    }
+    setZones(remaining);
+    setDeleteZone(null);
+    setToast("區域已刪除");
+    if (activeZone === zid) setActiveZone(null);
+  }
+
+  function saveEditZone() {
+    if (!zoneForm.name.trim()) { setToast("請輸入區域名稱"); return; }
+    setZones(prev => prev.map(z => z.id === editZone.id ? { ...z, name: zoneForm.name.trim() } : z));
+    setEditZone(null);
+    setToast("已更新！");
+  }
+
+  const tabBar = [
+    { key:"order",   label:"叫貨",    icon:<IcoList /> },
+    { key:"history", label:"紀錄",    icon:<IcoHistory /> },
+    { key:"manage",  label:"管理品項", icon:<IcoSettings /> },
+  ];
+
+  return (
+    <div style={{ fontFamily:"'Noto Sans TC','PingFang TC',system-ui,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:480, margin:"0 auto" }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ background:C.header, color:"#fff", padding:"14px 18px 12px", position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 10px rgba(0,0,0,0.15)" }}>
+        {tab === "manage" && manageView === "products" ? (
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={() => { setManageView("zones"); setActiveZone(null); setLongPressId(null); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.85)", cursor:"pointer", display:"flex", padding:0 }}><IcoBack /></button>
+            <span style={{ fontWeight:800, fontSize:17 }}>{zones.find(z=>z.id===activeZone)?.name} 品項</span>
+          </div>
+        ) : (
+          <div style={{ fontSize:18, fontWeight:800, letterSpacing:"0.04em" }}>🏥 錦禾中醫叫貨系統</div>
+        )}
+        {tab === "order" && (
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", marginTop:2 }}>
+            已選 {selectedItems.length} 項 · 共 {selectedItems.reduce((s,i)=>s+i.qty,0)} 件
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════ ORDER TAB ══════════════ */}
+      {tab === "order" && (
+        <div style={{ paddingBottom:110 }}>
+          <div style={{ padding:"12px 16px 6px" }}>
+            <div style={{ background:C.surface, borderRadius:12, display:"flex", alignItems:"center", padding:"9px 14px", gap:8, border:`1px solid ${C.border}` }}>
+              <span style={{ color:C.sub }}><IcoSearch /></span>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜尋品項…"
+                style={{ border:"none", outline:"none", fontSize:15, flex:1, color:C.text, background:"transparent", fontFamily:"inherit" }} />
+              {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>}
+            </div>
+          </div>
+
+          <div style={{ padding:"4px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+            {filteredProducts.length === 0 && (
+              <div style={{ textAlign:"center", color:C.sub, padding:"48px 0" }}>找不到符合品項</div>
+            )}
+            {(() => {
+              let lastZone = null;
+              let rowIdx = 0;
+              return filteredProducts.map(p => {
+                const showZoneLabel = p.zone !== lastZone;
+                if (showZoneLabel) { lastZone = p.zone; rowIdx = 0; }
+                const q = qty[p.id] || 0;
+                const active = q > 0;
+                const rowColor = active ? C.selected : (rowIdx % 2 === 0 ? C.rowA : C.rowB);
+                rowIdx++;
+                const zoneName = zones.find(z => z.id === p.zone)?.name || p.zone;
+                return (
+                  <React.Fragment key={p.id}>
+                    {showZoneLabel && (
+                      <div style={{ fontSize:12, fontWeight:700, color:C.sub, marginTop:4, marginBottom:0, paddingLeft:4, letterSpacing:"0.06em" }}>
+                        ── {zoneName} ──
+                      </div>
+                    )}
+                    <div style={{ background:rowColor, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, border:`1.5px solid ${active ? C.primary : C.border}`, transition:"all 0.15s" }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:600, fontSize:15, color:C.text }}>{p.name}</div>
+                        {p.note && (
+                          <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
+                            <span style={{ color:C.accent }}><IcoInfo /></span>
+                            <span style={{ fontSize:12, color:C.accent, fontWeight:500 }}>{p.note}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                        <span style={{ fontSize:12, color:C.sub }}>{p.unit}</span>
+                        <div style={{ position:"relative" }}>
+                          <select value={q} onChange={e => setQty(prev => ({ ...prev, [p.id]: Number(e.target.value) }))}
+                            style={{ appearance:"none", background: active ? C.primary : C.light, color: active ? "#fff" : C.text, border:"none", borderRadius:10, padding:"7px 28px 7px 14px", fontSize:15, fontWeight:700, cursor:"pointer", outline:"none", fontFamily:"inherit", minWidth:64 }}>
+                            {QTY_OPTIONS.map(n => (
+                              <option key={n} value={n} style={{ background:"#fff", color:C.text }}>{n === 0 ? "－" : n}</option>
+                            ))}
+                          </select>
+                          <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color: active ? "rgba(255,255,255,0.7)" : C.sub, fontSize:10 }}>▼</span>
+                        </div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              });
+            })()}
+          </div>
+
+          {selectedItems.length > 0 && (
+            <div style={{ position:"fixed", bottom:66, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, padding:"10px 16px", background:`linear-gradient(to top, ${C.bg} 60%, transparent)` }}>
+              <button onClick={() => setShowExport(true)} style={{ ...btnPrimary, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <IcoExport /> 匯出叫貨單（{selectedItems.length} 項）
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ HISTORY TAB ══════════════ */}
+      {tab === "history" && (
+        <div style={{ padding:"14px 16px 90px", display:"flex", flexDirection:"column", gap:10 }}>
+          {orders.length === 0 && (
+            <div style={{ textAlign:"center", color:C.sub, paddingTop:60 }}>還沒有叫貨紀錄</div>
+          )}
+          {orders.map(o => (
+            <div key={o.id + o.time} style={{ background:C.rowA, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}` }}>
+              <div onClick={() => setShowOrderDetail(showOrderDetail === (o.id+o.time) ? null : (o.id+o.time))}
+                style={{ padding:"13px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:15, color:C.text }}>{o.id}</div>
+                  <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>{o.time} · {o.items.length} 項</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ background:"#e8ddd0", color:C.primary, fontSize:12, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>已送出</span>
+                  <span style={{ color:C.sub, fontSize:12 }}>{showOrderDetail === (o.id+o.time) ? "▲" : "▼"}</span>
+                </div>
+              </div>
+              {showOrderDetail === (o.id+o.time) && (
+                <div style={{ borderTop:`1px solid ${C.border}`, padding:"10px 16px 14px" }}>
+                  {o.items.map((item, i) => (
+                    <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom: i < o.items.length-1 ? `1px dashed ${C.border}` : "none" }}>
+                      <span style={{ fontSize:14, color:C.text }}>{item.name}</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:C.primary }}>{item.qty} {item.unit}</span>
+                    </div>
+                  ))}
+                  <button onClick={() => {
+                    const txt = o.items.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n");
+                    navigator.clipboard.writeText(txt).then(() => setToast("已複製！")).catch(() => setToast("請手動複製"));
+                  }} style={{ marginTop:10, background:C.light, border:"none", borderRadius:8, padding:"7px 14px", fontSize:13, color:C.sub, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"inherit" }}>
+                    <IcoCopy /> 複製此單
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ══════════════ MANAGE TAB ══════════════ */}
+      {tab === "manage" && (
+        <div style={{ padding:"14px 16px 90px" }}>
+
+          {/* Zone list view */}
+          {manageView === "zones" && (
+            <>
+              <button onClick={() => setShowAddZone(true)}
+                style={{ ...btnPrimary, background:C.addBtn, display:"flex", alignItems:"center", justifyContent:"center", gap:7, marginBottom:14 }}>
+                <IcoPlus /> 新增區域
+              </button>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {zones.map((z, idx) => {
+                  const count = products.filter(p => p.zone === z.id).length;
+                  return (
+                    <div key={z.id} style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}` }}>
+                      <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <button onClick={() => { setActiveZone(z.id); setManageView("products"); setLongPressId(null); }}
+                          style={{ flex:1, background:"none", border:"none", textAlign:"left", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
+                          <div style={{ fontWeight:700, fontSize:16, color:C.text }}>{z.name}</div>
+                          <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>{count} 個品項</div>
+                        </button>
+                        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                          <button onClick={() => { setZoneForm({ name: z.name }); setEditZone(z); }}
+                            style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
+                          <button onClick={() => setDeleteZone(z)}
+                            style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Product list within zone */}
+          {manageView === "products" && (
+            <>
+              <button onClick={openAdd}
+                style={{ ...btnPrimary, background:C.addBtn, display:"flex", alignItems:"center", justifyContent:"center", gap:7, marginBottom:14 }}>
+                <IcoPlus /> 在此區域新增品項
+              </button>
+              {longPressId && (
+                <div style={{ background:"#fff8e8", border:`1px solid ${C.accent}`, borderRadius:10, padding:"8px 14px", marginBottom:10, fontSize:13, color:C.accent, textAlign:"center" }}>
+                  長按模式：拖曳或使用 ↑↓ 調整順序
+                  <button onClick={() => setLongPressId(null)} style={{ marginLeft:10, background:"none", border:"none", color:C.sub, cursor:"pointer", fontSize:13 }}>完成</button>
+                </div>
+              )}
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {zoneProducts.map((p, idx) => {
+                  const isLong = longPressId === p.id || longPressId !== null;
+                  return (
+                    <div key={p.id}
+                      draggable={longPressId !== null}
+                      onDragStart={() => handleDragStart(p.id)}
+                      onDragOver={e => handleDragOver(e, p.id)}
+                      onDragEnd={handleDragEnd}
+                      onTouchStart={() => handleTouchStart(p.id)}
+                      onTouchEnd={handleTouchEnd}
+                      onContextMenu={e => { e.preventDefault(); setLongPressId(p.id); }}
+                      style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", border:`1px solid ${longPressId !== null && dragId === p.id ? C.primary : C.border}`, transition:"all 0.15s", cursor: longPressId !== null ? "grab" : "default", opacity: dragId === p.id ? 0.5 : 1 }}>
+                      {longPressId !== null && (
+                        <span style={{ color:C.sub, marginRight:8, display:"flex", flexShrink:0 }}><IcoDrag /></span>
+                      )}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:600, fontSize:15, color:C.text }}>{p.name}</div>
+                        <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>
+                          單位：{p.unit || "—"}
+                          {p.note ? <span style={{ marginLeft:8, color:C.accent }}>📌 {p.note}</span> : null}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:5, flexShrink:0, alignItems:"center" }}>
+                        {longPressId !== null ? (
+                          <>
+                            <button onClick={() => moveItem(p.id, -1)} disabled={idx === 0}
+                              style={{ background: idx === 0 ? C.border : C.light, border:"none", borderRadius:8, padding:"6px 8px", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? C.light : C.primary, display:"flex", opacity: idx === 0 ? 0.4 : 1 }}><IcoUp /></button>
+                            <button onClick={() => moveItem(p.id, 1)} disabled={idx === zoneProducts.length - 1}
+                              style={{ background: idx === zoneProducts.length-1 ? C.border : C.light, border:"none", borderRadius:8, padding:"6px 8px", cursor: idx === zoneProducts.length-1 ? "default" : "pointer", color: idx === zoneProducts.length-1 ? C.light : C.primary, display:"flex", opacity: idx === zoneProducts.length-1 ? 0.4 : 1 }}><IcoDown /></button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => openEdit(p)} style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
+                            <button onClick={() => setDeleteItem(p)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {zoneProducts.length === 0 && (
+                <div style={{ textAlign:"center", color:C.sub, paddingTop:40 }}>此區域尚無品項</div>
+              )}
+              {zoneProducts.length > 0 && longPressId === null && (
+                <div style={{ textAlign:"center", color:C.sub, fontSize:12, marginTop:16 }}>
+                  長按品項可調整順序
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB BAR ── */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:"#e8e0d6", borderTop:`1px solid ${C.border}`, display:"flex", zIndex:100 }}>
+        {tabBar.map(t => (
+          <button key={t.key} onClick={() => { setTab(t.key); if (t.key !== "manage") { setManageView("zones"); setActiveZone(null); setLongPressId(null); } }}
+            style={{ flex:1, border:"none", background:"none", padding:"10px 0 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:3, color: tab === t.key ? C.primary : C.sub, fontWeight: tab === t.key ? 700 : 400, fontSize:11, cursor:"pointer", fontFamily:"inherit", borderTop:`3px solid ${tab === t.key ? C.primary : "transparent"}` }}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── EXPORT MODAL ── */}
+      {showExport && (
+        <Modal title="本次叫貨單" onClose={() => setShowExport(false)}>
+          <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:14, fontFamily:"monospace", fontSize:14, lineHeight:1.9, color:C.text, whiteSpace:"pre-wrap", minHeight:60 }}>
+            {exportText}
+          </div>
+          <div style={{ display:"flex", gap:10, marginBottom:10 }}>
+            <button onClick={handleCopyExport} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"12px", fontSize:14, fontWeight:600, color:C.primary, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontFamily:"inherit" }}>
+              <IcoCopy /> 複製文字
+            </button>
+          </div>
+          <button onClick={handleSubmitOrder} style={{ ...btnPrimary, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
+            <IcoCheck /> 確認送出並儲存紀錄
+          </button>
+          <button onClick={() => setShowExport(false)} style={{ width:"100%", marginTop:8, background:"none", border:"none", color:C.sub, fontSize:14, cursor:"pointer", padding:"8px", fontFamily:"inherit" }}>
+            返回繼續修改
+          </button>
+        </Modal>
+      )}
+
+      {/* ── ADD PRODUCT MODAL ── */}
+      {showAdd && (
+        <Modal title="新增品項" onClose={() => setShowAdd(false)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>品名 *</div>
+              <input style={inputStyle} placeholder="例：酒精" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>單位</div>
+              <input style={inputStyle} placeholder="例：箱、盒、包" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>說明備註</div>
+              <input style={inputStyle} placeholder="例：一箱6罐" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域</div>
+              <div style={{ position:"relative" }}>
+                <select value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+                  style={{ ...inputStyle, appearance:"none", paddingRight:32 }}>
+                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+                <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:11 }}>▼</span>
+              </div>
+            </div>
+            <button onClick={saveAdd} style={{ ...btnPrimary, marginTop:4 }}>新增</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── EDIT PRODUCT MODAL ── */}
+      {editItem && (
+        <Modal title="編輯品項" onClose={() => setEditItem(null)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>品名 *</div>
+              <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>單位</div>
+              <input style={inputStyle} value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>說明備註</div>
+              <input style={inputStyle} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域</div>
+              <div style={{ position:"relative" }}>
+                <select value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+                  style={{ ...inputStyle, appearance:"none", paddingRight:32 }}>
+                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+                <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:11 }}>▼</span>
+              </div>
+            </div>
+            <button onClick={saveEdit} style={{ ...btnPrimary, marginTop:4 }}>儲存</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── DELETE PRODUCT MODAL ── */}
+      {deleteItem && (
+        <Modal title="確認刪除" onClose={() => setDeleteItem(null)}>
+          <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>🗑️</div>
+            <div style={{ fontSize:16, color:C.text, marginBottom:6 }}>確定要刪除</div>
+            <div style={{ fontSize:18, fontWeight:700, color:C.danger, marginBottom:20 }}>「{deleteItem.name}」？</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setDeleteItem(null)} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:C.text, fontWeight:600 }}>取消</button>
+              <button onClick={confirmDelete} style={{ flex:1, background:C.danger, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:"#fff", fontWeight:700 }}>刪除</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── ADD ZONE MODAL ── */}
+      {showAddZone && (
+        <Modal title="新增區域" onClose={() => setShowAddZone(false)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域名稱 *</div>
+              <input style={inputStyle} placeholder="例：F 區" value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} />
+            </div>
+            <button onClick={saveAddZone} style={{ ...btnPrimary, marginTop:4 }}>新增</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── EDIT ZONE MODAL ── */}
+      {editZone && (
+        <Modal title="編輯區域名稱" onClose={() => setEditZone(null)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域名稱 *</div>
+              <input style={inputStyle} value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} />
+            </div>
+            <button onClick={saveEditZone} style={{ ...btnPrimary, marginTop:4 }}>儲存</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── DELETE ZONE MODAL ── */}
+      {deleteZone && (
+        <Modal title="確認刪除區域" onClose={() => setDeleteZone(null)}>
+          <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>🗑️</div>
+            <div style={{ fontSize:16, color:C.text, marginBottom:6 }}>確定要刪除</div>
+            <div style={{ fontSize:18, fontWeight:700, color:C.danger, marginBottom:8 }}>「{deleteZone.name}」？</div>
+            <div style={{ fontSize:13, color:C.sub, marginBottom:20 }}>此區域的品項將移至第一個區域</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setDeleteZone(null)} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:C.text, fontWeight:600 }}>取消</button>
+              <button onClick={confirmDeleteZone} style={{ flex:1, background:C.danger, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:"#fff", fontWeight:700 }}>刪除</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {toast && <Toast msg={toast} onDone={() => setToast("")} />}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>
