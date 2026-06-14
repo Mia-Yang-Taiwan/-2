@@ -227,6 +227,11 @@ function App() {
   const [deleteZone,   setDeleteZone]   = useState(null);
   const [editZone,     setEditZone]     = useState(null);
 
+  // New modals for history order manipulation
+  const [orderToDelete, setOrderToDelete] = useState(null);
+  const [orderToEdit, setOrderToEdit] = useState(null);
+  const [editingOrderItems, setEditingOrderItems] = useState([]);
+
   // forms
   const [form,     setForm]     = useState({ name:"", unit:"", note:"", zone:"A" });
   const [zoneForm, setZoneForm] = useState({ name:"" });
@@ -293,6 +298,38 @@ function App() {
     }
   }
 
+  // ── History Order Actions ────────────────────────────────────────────────────
+  function handleOpenEditOrder(order) {
+    setOrderToEdit(order);
+    setEditingOrderItems(JSON.parse(JSON.stringify(order.items))); // 深度複製
+  }
+
+  function handleUpdateOrderItemQty(index, newQty) {
+    setEditingOrderItems(prev => prev.map((item, i) => i === index ? { ...item, qty: newQty } : item));
+  }
+
+  function handleSaveEditOrder() {
+    // 濾除數量大於 0 的品項
+    const finalItems = editingOrderItems.filter(item => item.qty > 0);
+    if (finalItems.length === 0) {
+      setToast("品項數量不可全部為0，如不需此單請直接刪除");
+      return;
+    }
+    setOrders(prev => prev.map(o => (o.id === orderToEdit.id && o.time === orderToEdit.time) ? { ...o, items: finalItems } : o));
+    setOrderToEdit(null);
+    setToast("訂單內容已更新！");
+  }
+
+  function handleDeleteOrder() {
+    setOrders(prev => prev.filter(o => !(o.id === orderToDelete.id && o.time === orderToDelete.time)));
+    // 如果目前打開的詳細資料剛好是被刪除的訂單，將其關閉
+    if (showOrderDetail === (orderToDelete.id + orderToDelete.time)) {
+      setShowOrderDetail(null);
+    }
+    setOrderToDelete(null);
+    setToast("訂單已刪除");
+  }
+
   // ── Product CRUD ──────────────────────────────────────────────────────────────
   function openAdd() {
     const defaultZone = activeZone || (zones[0]?.id || "A");
@@ -311,7 +348,7 @@ function App() {
     const newP = { id: Date.now(), name: form.name.trim(), unit: form.unit.trim(), note: form.note.trim(), zone: form.zone, order: maxOrder + 1 };
     setProducts(prev => [...prev, newP]);
     setShowAdd(false);
-    setToast("品項已新增！");
+    Toast("品項已新增！");
   }
 
   function saveEdit() {
@@ -409,7 +446,7 @@ function App() {
   }
 
   const tabBar = [
-    { key:"order",   label:"叫貨",    icon:<IcoList /> },
+    { key:"order",    label:"叫貨",    icon:<IcoList /> },
     { key:"history", label:"紀錄",    icon:<IcoHistory /> },
     { key:"manage",  label:"管理品項", icon:<IcoSettings /> },
   ];
@@ -517,13 +554,21 @@ function App() {
             <div key={o.id + o.time} style={{ background:C.rowA, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}` }}>
               <div onClick={() => setShowOrderDetail(showOrderDetail === (o.id+o.time) ? null : (o.id+o.time))}
                 style={{ padding:"13px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight:700, fontSize:15, color:C.text }}>{o.id}</div>
                   <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>{o.time} · {o.items.length} 項</div>
                 </div>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ background:"#e8ddd0", color:C.primary, fontSize:12, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>已送出</span>
-                  <span style={{ color:C.sub, fontSize:12 }}>{showOrderDetail === (o.id+o.time) ? "▲" : "▼"}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => handleOpenEditOrder(o)} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", display:"flex", padding:4 }}>
+                    <IcoEdit />
+                  </button>
+                  <button onClick={() => setOrderToDelete(o)} style={{ background:"none", border:"none", color:C.danger, cursor:"pointer", display:"flex", padding:4 }}>
+                    <IcoTrash />
+                  </button>
+                  <div onClick={() => setShowOrderDetail(showOrderDetail === (o.id+o.time) ? null : (o.id+o.time))} style={{ display:"flex", alignItems:"center", gap:4, cursor:"pointer", paddingLeft:4 }}>
+                    <span style={{ background:"#e8ddd0", color:C.primary, fontSize:12, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>已送出</span>
+                    <span style={{ color:C.sub, fontSize:12 }}>{showOrderDetail === (o.id+o.time) ? "▲" : "▼"}</span>
+                  </div>
                 </div>
               </div>
               {showOrderDetail === (o.id+o.time) && (
@@ -555,26 +600,24 @@ function App() {
           {manageView === "zones" && (
             <>
               <button onClick={() => setShowAddZone(true)}
-                style={{ ...btnPrimary, background:C.addBtn, display:"flex", alignItems:"center", justifyContent:"center", gap:7, marginBottom:14 }}>
+                style={{ ...btnPrimary, background:C.addBtn, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px 0", borderRadius:10 }}>
                 <IcoPlus /> 新增區域
               </button>
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {zones.map((z, idx) => {
+
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {zones.map(z => {
                   const count = products.filter(p => p.zone === z.id).length;
                   return (
-                    <div key={z.id} style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}` }}>
-                      <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                        <button onClick={() => { setActiveZone(z.id); setManageView("products"); setLongPressId(null); }}
-                          style={{ flex:1, background:"none", border:"none", textAlign:"left", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
-                          <div style={{ fontWeight:700, fontSize:16, color:C.text }}>{z.name}</div>
-                          <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>{count} 個品項</div>
-                        </button>
-                        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                          <button onClick={() => { setZoneForm({ name: z.name }); setEditZone(z); }}
-                            style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
-                          <button onClick={() => setDeleteZone(z)}
-                            style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
-                        </div>
+                    <div key={z.id} onClick={() => { setActiveZone(z.id); setManageView("products"); }}
+                      style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+                      <div>
+                        <span style={{ fontWeight:700, color:C.text, fontSize:15 }}>{z.name}</span>
+                        <span style={{ fontSize:12, color:C.sub, marginLeft:8 }}>({count} 個品項)</span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:12 }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => { setZoneForm({ name:z.name }); setEditZone(z); }} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", display:"flex" }}><IcoEdit /></button>
+                        <button onClick={() => setDeleteZone(z)} style={{ background:"none", border:"none", color:C.danger, cursor:"pointer", display:"flex" }}><IcoTrash /></button>
+                        <span style={{ color:C.light, fontSize:16, fontWeight:700, paddingLeft:4 }}>›</span>
                       </div>
                     </div>
                   );
@@ -583,231 +626,267 @@ function App() {
             </>
           )}
 
-          {/* Product list within zone */}
-          {manageView === "products" && (
-            <>
+          {/* Products list view inside a zone */}
+          {manageView === "products" && activeZone && (
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <button onClick={openAdd}
-                style={{ ...btnPrimary, background:C.addBtn, display:"flex", alignItems:"center", justifyContent:"center", gap:7, marginBottom:14 }}>
-                <IcoPlus /> 在此區域新增品項
+                style={{ ...btnPrimary, background:C.addBtn, marginBottom:6, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px 0", borderRadius:10 }}>
+                <IcoPlus /> 新增品項
               </button>
-              {longPressId && (
-                <div style={{ background:"#fff8e8", border:`1px solid ${C.accent}`, borderRadius:10, padding:"8px 14px", marginBottom:10, fontSize:13, color:C.accent, textAlign:"center" }}>
-                  長按模式：拖曳或使用 ↑↓ 調整順序
-                  <button onClick={() => setLongPressId(null)} style={{ marginLeft:10, background:"none", border:"none", color:C.sub, cursor:"pointer", fontSize:13 }}>完成</button>
-                </div>
+
+              {zoneProducts.length === 0 && (
+                <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:14 }}>此區域尚無品項</div>
               )}
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {zoneProducts.map((p, idx) => {
-                  const isLong = longPressId === p.id || longPressId !== null;
-                  return (
-                    <div key={p.id}
-                      draggable={longPressId !== null}
-                      onDragStart={() => handleDragStart(p.id)}
-                      onDragOver={e => handleDragOver(e, p.id)}
-                      onDragEnd={handleDragEnd}
-                      onTouchStart={() => handleTouchStart(p.id)}
-                      onTouchEnd={handleTouchEnd}
-                      onContextMenu={e => { e.preventDefault(); setLongPressId(p.id); }}
-                      style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", border:`1px solid ${longPressId !== null && dragId === p.id ? C.primary : C.border}`, transition:"all 0.15s", cursor: longPressId !== null ? "grab" : "default", opacity: dragId === p.id ? 0.5 : 1 }}>
-                      {longPressId !== null && (
-                        <span style={{ color:C.sub, marginRight:8, display:"flex", flexShrink:0 }}><IcoDrag /></span>
-                      )}
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontWeight:600, fontSize:15, color:C.text }}>{p.name}</div>
-                        <div style={{ fontSize:12, color:C.sub, marginTop:2 }}>
-                          單位：{p.unit || "—"}
-                          {p.note ? <span style={{ marginLeft:8, color:C.accent }}>📌 {p.note}</span> : null}
-                        </div>
+
+              {zoneProducts.map((p, index) => {
+                const isDragging = p.id === dragId;
+                const isLongPressed = p.id === longPressId;
+                return (
+                  <div key={p.id}
+                    draggable
+                    onDragStart={() => handleDragStart(p.id)}
+                    onDragOver={(e) => handleDragOver(e, p.id)}
+                    onDragEnd={handleDragEnd}
+                    onTouchStart={() => handleTouchStart(p.id)}
+                    onTouchEnd={handleTouchEnd}
+                    style={{
+                      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 14px",
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                      opacity: isDragging ? 0.4 : 1, transition: "transform 0.1s",
+                      position: "relative",
+                    }}
+                  >
+                    {/* Reorder Buttons (Desktop/Click) */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                      <button disabled={index === 0} onClick={() => moveItem(p.id, -1)} style={{ background:"none", border:"none", color: index===0?C.light:C.sub, cursor:index===0?"default":"pointer", padding:2, display:"flex" }}><IcoUp /></button>
+                      <button disabled={index === zoneProducts.length - 1} onClick={() => moveItem(p.id, 1)} style={{ background:"none", border:"none", color: index===zoneProducts.length-1?C.light:C.sub, cursor:index===zoneProducts.length-1?"default":"pointer", padding:2, display:"flex" }}><IcoDown /></button>
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0, paddingLeft: 4 }}>
+                      <div style={{ fontWeight: 600, color: C.text, fontSize: 14, display:"flex", alignItems:"center", gap:6 }}>
+                        {p.name}
+                        <span style={{ fontSize:12, color:C.sub, fontWeight:400 }}>({p.unit})</span>
                       </div>
-                      <div style={{ display:"flex", gap:5, flexShrink:0, alignItems:"center" }}>
-                        {longPressId !== null ? (
-                          <>
-                            <button onClick={() => moveItem(p.id, -1)} disabled={idx === 0}
-                              style={{ background: idx === 0 ? C.border : C.light, border:"none", borderRadius:8, padding:"6px 8px", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? C.light : C.primary, display:"flex", opacity: idx === 0 ? 0.4 : 1 }}><IcoUp /></button>
-                            <button onClick={() => moveItem(p.id, 1)} disabled={idx === zoneProducts.length - 1}
-                              style={{ background: idx === zoneProducts.length-1 ? C.border : C.light, border:"none", borderRadius:8, padding:"6px 8px", cursor: idx === zoneProducts.length-1 ? "default" : "pointer", color: idx === zoneProducts.length-1 ? C.light : C.primary, display:"flex", opacity: idx === zoneProducts.length-1 ? 0.4 : 1 }}><IcoDown /></button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => openEdit(p)} style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
-                            <button onClick={() => setDeleteItem(p)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
-                          </>
-                        )}
+                      {p.note && <div style={{ fontSize: 11, color: C.accent, marginTop: 2 }}>{p.note}</div>}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <button onClick={() => openEdit(p)} style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", display: "flex", padding:4 }}><IcoEdit /></button>
+                      <button onClick={() => setDeleteItem(p)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", display: "flex", padding:4 }}><IcoTrash /></button>
+                      
+                      {/* Drag Handle (Mobile long press indicator / Desktop drag indicator) */}
+                      <div style={{ color: isLongPressed ? C.primary : C.light, cursor: "move", display: "flex", alignItems: "center" }}>
+                        <IcoDrag />
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
+              <div style={{ fontSize:11, color:C.sub, textAlign:"center", marginTop:8 }}>
+                * 電腦端可直接拖曳排序；手機端可使用上下箭頭調整順序。
               </div>
-              {zoneProducts.length === 0 && (
-                <div style={{ textAlign:"center", color:C.sub, paddingTop:40 }}>此區域尚無品項</div>
-              )}
-              {zoneProducts.length > 0 && longPressId === null && (
-                <div style={{ textAlign:"center", color:C.sub, fontSize:12, marginTop:16 }}>
-                  長按品項可調整順序
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
       )}
 
-      {/* ── TAB BAR ── */}
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:"#e8e0d6", borderTop:`1px solid ${C.border}`, display:"flex", zIndex:100 }}>
-        {tabBar.map(t => (
-          <button key={t.key} onClick={() => { setTab(t.key); if (t.key !== "manage") { setManageView("zones"); setActiveZone(null); setLongPressId(null); } }}
-            style={{ flex:1, border:"none", background:"none", padding:"10px 0 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:3, color: tab === t.key ? C.primary : C.sub, fontWeight: tab === t.key ? 700 : 400, fontSize:11, cursor:"pointer", fontFamily:"inherit", borderTop:`3px solid ${tab === t.key ? C.primary : "transparent"}` }}>
-            {t.icon}{t.label}
-          </button>
-        ))}
+      {/* ── BOTTOM NAVIGATION BAR ── */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, height:66, background:C.surface, borderTop:`1.5px solid ${C.border}`, display:"flex", zIndex:150 }}>
+        {tabBar.map(t => {
+          const active = tab === t.key;
+          return (
+            <button key={t.key} onClick={() => { setTab(t.key); setSearch(""); }}
+              style={{ flex:1, background:"none", border:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, color: active ? C.primary : C.sub, cursor:"pointer", fontFamily:"inherit" }}>
+              <div style={{ transform: active ? "scale(1.1)" : "scale(1)", transition:"transform 0.1s" }}>{t.icon}</div>
+              <span style={{ fontSize:11, fontWeight: active ? 700 : 500 }}>{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── EXPORT MODAL ── */}
+      {/* ── MODALS: ORDER EXPORT ── */}
       {showExport && (
-        <Modal title="本次叫貨單" onClose={() => setShowExport(false)}>
-          <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:14, fontFamily:"monospace", fontSize:14, lineHeight:1.9, color:C.text, whiteSpace:"pre-wrap", minHeight:60 }}>
-            {exportText}
+        <Modal title="確認叫貨清單" onClose={() => setShowExport(false)}>
+          <div style={{ background:"#fff", borderRadius:12, padding:14, border:`1px solid ${C.border}`, maxHeight:"35vh", overflowY:"auto", marginBottom:16 }}>
+            {selectedItems.map((item, i) => (
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom: i<selectedItems.length-1?`1px dashed ${C.bg}`:"none", fontSize:14, color:C.text }}>
+                <span>{item.name}</span>
+                <span style={{ fontWeight:700, color:C.primary }}>{item.qty} {item.unit}</span>
+              </div>
+            ))}
           </div>
-          <div style={{ display:"flex", gap:10, marginBottom:10 }}>
-            <button onClick={handleCopyExport} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"12px", fontSize:14, fontWeight:600, color:C.primary, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontFamily:"inherit" }}>
-              <IcoCopy /> 複製文字
-            </button>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={handleCopyExport} style={{ ...btnPrimary, background:C.surface, color:C.text, border:`1.5px solid ${C.border}`, flex:1, padding:"11px 0" }}>僅複製文字</button>
+            <button onClick={handleSubmitOrder} style={{ ...btnPrimary, flex:1, padding:"11px 0" }}>儲存並複製</button>
           </div>
-          <button onClick={handleSubmitOrder} style={{ ...btnPrimary, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
-            <IcoCheck /> 確認送出並儲存紀錄
-          </button>
-          <button onClick={() => setShowExport(false)} style={{ width:"100%", marginTop:8, background:"none", border:"none", color:C.sub, fontSize:14, cursor:"pointer", padding:"8px", fontFamily:"inherit" }}>
-            返回繼續修改
-          </button>
         </Modal>
       )}
 
-      {/* ── ADD PRODUCT MODAL ── */}
+      {/* ── MODALS: EDIT HISTORY ORDER ── */}
+      {orderToEdit && (
+        <Modal title={`修改訂單: ${orderToEdit.id}`} onClose={() => setOrderToEdit(null)}>
+          <div style={{ background:"#fff", borderRadius:12, padding:14, border:`1px solid ${C.border}`, maxHeight:"45vh", overflowY:"auto", marginBottom:16, display:"flex", flexDirection:"column", gap:10 }}>
+            {editingOrderItems.map((item, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0", borderBottom: i<editingOrderItems.length-1?`1px dashed ${C.bg}`:"none" }}>
+                <span style={{ fontSize:14, color:C.text, flex:1, minWidth:0, marginRight:8 }}>{item.name}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                  <span style={{ fontSize:12, color:C.sub }}>{item.unit}</span>
+                  <div style={{ position:"relative" }}>
+                    <select value={item.qty} onChange={e => handleUpdateOrderItemQty(i, Number(e.target.value))}
+                      style={{ appearance:"none", background: item.qty > 0 ? C.primary : C.light, color: item.qty > 0 ? "#fff" : C.text, border:"none", borderRadius:10, padding:"6px 24px 6px 12px", fontSize:14, fontWeight:700, cursor:"pointer", outline:"none", fontFamily:"inherit", minWidth:60 }}>
+                      {QTY_OPTIONS.map(n => (
+                        <option key={n} value={n} style={{ background:"#fff", color:C.text }}>{n === 0 ? "刪除" : n}</option>
+                      ))}
+                    </select>
+                    <span style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color: item.qty > 0 ? "rgba(255,255,255,0.7)" : C.sub, fontSize:9 }}>▼</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setOrderToEdit(null)} style={{ ...btnPrimary, background:C.surface, color:C.text, border:`1.5px solid ${C.border}`, flex:1, padding:"11px 0" }}>取消</button>
+            <button onClick={handleSaveEditOrder} style={{ ...btnPrimary, flex:1, padding:"11px 0" }}>保存修改</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── MODALS: DELETE HISTORY ORDER CONFIRMATION ── */}
+      {orderToDelete && (
+        <Modal title="刪除確認" onClose={() => setOrderToDelete(null)}>
+          <div style={{ fontSize:15, color:C.text, marginBottom:20, textAlign:"center", fontWeight:500 }}>
+            確定要刪除 <span style={{ color:C.danger, fontWeight:700 }}>{orderToDelete.id} ({orderToDelete.time})</span> 嗎？此操作無法還原。
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setOrderToDelete(null)} style={{ ...btnPrimary, background:C.surface, color:C.text, border:`1.5px solid ${C.border}`, flex:1, padding:"11px 0" }}>取消</button>
+            <button onClick={handleDeleteOrder} style={{ ...btnPrimary, background:C.danger, flex:1, padding:"11px 0" }}>確認刪除</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── MODALS: PRODUCT ADD ── */}
       {showAdd && (
         <Modal title="新增品項" onClose={() => setShowAdd(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:18 }}>
             <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>品名 *</div>
-              <input style={inputStyle} placeholder="例：酒精" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>品項名稱 *</label>
+              <input value={form.name} onChange={e=>setForm(prev=>({...prev, name:e.target.value}))} placeholder="例: 針4005" style={inputStyle} />
             </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>單位</div>
-              <input style={inputStyle} placeholder="例：箱、盒、包" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>說明備註</div>
-              <input style={inputStyle} placeholder="例：一箱6罐" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域</div>
-              <div style={{ position:"relative" }}>
-                <select value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
-                  style={{ ...inputStyle, appearance:"none", paddingRight:32 }}>
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-                <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:11 }}>▼</span>
-              </div>
-            </div>
-            <button onClick={saveAdd} style={{ ...btnPrimary, marginTop:4 }}>新增</button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── EDIT PRODUCT MODAL ── */}
-      {editItem && (
-        <Modal title="編輯品項" onClose={() => setEditItem(null)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>品名 *</div>
-              <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>單位</div>
-              <input style={inputStyle} value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>說明備註</div>
-              <input style={inputStyle} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-            </div>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域</div>
-              <div style={{ position:"relative" }}>
-                <select value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
-                  style={{ ...inputStyle, appearance:"none", paddingRight:32 }}>
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-                <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:11 }}>▼</span>
-              </div>
-            </div>
-            <button onClick={saveEdit} style={{ ...btnPrimary, marginTop:4 }}>儲存</button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── DELETE PRODUCT MODAL ── */}
-      {deleteItem && (
-        <Modal title="確認刪除" onClose={() => setDeleteItem(null)}>
-          <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
-            <div style={{ fontSize:36, marginBottom:10 }}>🗑️</div>
-            <div style={{ fontSize:16, color:C.text, marginBottom:6 }}>確定要刪除</div>
-            <div style={{ fontSize:18, fontWeight:700, color:C.danger, marginBottom:20 }}>「{deleteItem.name}」？</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setDeleteItem(null)} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:C.text, fontWeight:600 }}>取消</button>
-              <button onClick={confirmDelete} style={{ flex:1, background:C.danger, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:"#fff", fontWeight:700 }}>刪除</button>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>單位</label>
+                <input value={form.unit} onChange={e=>setForm(prev=>({...prev, unit:e.target.value}))} placeholder="例: 盒 / 包" style={inputStyle} />
+              </div>
+              <div style={{ flex:1.5 }}>
+                <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>存放區域</label>
+                <div style={{ position:"relative" }}>
+                  <select value={form.zone} onChange={e=>setForm(prev=>({...prev, zone:e.target.value}))}
+                    style={{ ...inputStyle, appearance:"none", paddingRight:30 }}>
+                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
+                  <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:12 }}>▼</span>
+                </div>
+              </div>
             </div>
+            <div>
+              <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>備註說明</label>
+              <input value={form.note} onChange={e=>setForm(prev=>({...prev, note:e.target.value}))} placeholder="例: 一箱6罐 / 規格說明" style={inputStyle} />
+            </div>
+          </div>
+          <button onClick={saveAdd} style={btnPrimary}>確認新增</button>
+        </Modal>
+      )}
+
+      {/* ── MODALS: PRODUCT EDIT ── */}
+      {editItem && (
+        <Modal title="修改品項資料" onClose={() => setEditItem(null)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:18 }}>
+            <div>
+              <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>品項名稱 *</label>
+              <input value={form.name} onChange={e=>setForm(prev=>({...prev, name:e.target.value}))} style={inputStyle} />
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <div style={{ flex:1 }}>
+                <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>單位</label>
+                <input value={form.unit} onChange={e=>setForm(prev=>({...prev, unit:e.target.value}))} style={inputStyle} />
+              </div>
+              <div style={{ flex:1.5 }}>
+                <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>存放區域</label>
+                <div style={{ position:"relative" }}>
+                  <select value={form.zone} onChange={e=>setForm(prev=>({...prev, zone:e.target.value}))} style={{ ...inputStyle, appearance:"none", paddingRight:30 }}>
+                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
+                  <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:12 }}>▼</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>備註說明</label>
+              <input value={form.note} onChange={e=>setForm(prev=>({...prev, note:e.target.value}))} style={inputStyle} />
+            </div>
+          </div>
+          <button onClick={saveEdit} style={btnPrimary}>儲存修改</button>
+        </Modal>
+      )}
+
+      {/* ── MODALS: PRODUCT DELETE ── */}
+      {deleteItem && (
+        <Modal title="刪除品項" onClose={() => setDeleteItem(null)}>
+          <div style={{ fontSize:15, color:C.text, marginBottom:20, textAlign:"center" }}>
+            確定要刪除 <span style={{ color:C.danger, fontWeight:700 }}>{deleteItem.name}</span> 嗎？
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setDeleteItem(null)} style={{ ...btnPrimary, background:C.surface, color:C.text, border:`1.5px solid ${C.border}`, flex:1, padding:"11px 0" }}>取消</button>
+            <button onClick={confirmDelete} style={{ ...btnPrimary, background:C.danger, flex:1, padding:"11px 0" }}>確認刪除</button>
           </div>
         </Modal>
       )}
 
-      {/* ── ADD ZONE MODAL ── */}
+      {/* ── MODALS: ZONE ADD ── */}
       {showAddZone && (
         <Modal title="新增區域" onClose={() => setShowAddZone(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域名稱 *</div>
-              <input style={inputStyle} placeholder="例：F 區" value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} />
-            </div>
-            <button onClick={saveAddZone} style={{ ...btnPrimary, marginTop:4 }}>新增</button>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>區域名稱 *</label>
+            <input value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} placeholder="例: F 區 / 診間倉庫" style={inputStyle} />
           </div>
+          <button onClick={saveAddZone} style={btnPrimary}>確認新增</button>
         </Modal>
       )}
 
-      {/* ── EDIT ZONE MODAL ── */}
+      {/* ── MODALS: ZONE EDIT ── */}
       {editZone && (
-        <Modal title="編輯區域名稱" onClose={() => setEditZone(null)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>區域名稱 *</div>
-              <input style={inputStyle} value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} />
-            </div>
-            <button onClick={saveEditZone} style={{ ...btnPrimary, marginTop:4 }}>儲存</button>
+        <Modal title="修改區域名稱" onClose={() => setEditZone(null)}>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:C.sub, display:"block", marginBottom:4 }}>區域名稱 *</label>
+            <input value={zoneForm.name} onChange={e => setZoneForm({ name: e.target.value })} style={inputStyle} />
           </div>
+          <button onClick={saveEditZone} style={btnPrimary}>儲存修改</button>
         </Modal>
       )}
 
-      {/* ── DELETE ZONE MODAL ── */}
+      {/* ── MODALS: ZONE DELETE ── */}
       {deleteZone && (
-        <Modal title="確認刪除區域" onClose={() => setDeleteZone(null)}>
-          <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
-            <div style={{ fontSize:36, marginBottom:10 }}>🗑️</div>
-            <div style={{ fontSize:16, color:C.text, marginBottom:6 }}>確定要刪除</div>
-            <div style={{ fontSize:18, fontWeight:700, color:C.danger, marginBottom:8 }}>「{deleteZone.name}」？</div>
-            <div style={{ fontSize:13, color:C.sub, marginBottom:20 }}>此區域的品項將移至第一個區域</div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setDeleteZone(null)} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:C.text, fontWeight:600 }}>取消</button>
-              <button onClick={confirmDeleteZone} style={{ flex:1, background:C.danger, border:"none", borderRadius:10, padding:"13px", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:"#fff", fontWeight:700 }}>刪除</button>
-            </div>
+        <Modal title="刪除區域" onClose={() => setDeleteZone(null)}>
+          <div style={{ fontSize:14, color:C.text, marginBottom:20, textAlign:"left", lineHeight:1.5 }}>
+            確定要刪除 <span style={{ color:C.danger, fontWeight:700 }}>{deleteZone.name}</span> 嗎？<br />
+            <span style={{ color:C.accent, fontSize:12 }}>註：該區域內的品項將會自動變更歸類至第一個剩餘的區域。</span>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setDeleteZone(null)} style={{ ...btnPrimary, background:C.surface, color:C.text, border:`1.5px solid ${C.border}`, flex:1, padding:"11px 0" }}>取消</button>
+            <button onClick={confirmDeleteZone} style={{ ...btnPrimary, background:C.danger, flex:1, padding:"11px 0" }}>確認刪除</button>
           </div>
         </Modal>
       )}
 
+      {/* ── TOAST NOTIFICATION ── */}
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
+
     </div>
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
   </script>
 </body>
 </html>
-
