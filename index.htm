@@ -1,779 +1,657 @@
 <!DOCTYPE html>
+
 <html lang="zh-TW">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="錦禾叫貨" />
-  <meta name="theme-color" content="#7c512e" />
-  <title>錦禾倉庫叫貨</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #f3ebe2; -webkit-tap-highlight-color: transparent; font-family: 'Noto Sans TC','PingFang TC',system-ui,sans-serif; }
-    #root { max-width: 480px; margin: 0 auto; }
-    /* 原本的拖曳樣式保留，避免動到其他佈局，但不觸發拖曳功能 */
-    .drag-over { outline: 2px dashed #7c512e; outline-offset: 2px; }
-  </style>
+
+<meta charset="UTF-8" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+<meta name="apple-mobile-web-app-title" content="錦禾叫貨" />
+
+<meta name="theme-color" content="#7c512e" />
+
+<title>錦禾倉庫叫貨</title>
+
+<style>
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { background: #f3ebe2; -webkit-tap-highlight-color: transparent; font-family: 'Noto Sans TC','PingFang TC',system-ui,sans-serif; }
+
+#root { max-width: 480px; margin: 0 auto; }
+
+.drag-over { outline: 2px dashed #7c512e; outline-offset: 2px; }
+
+</style>
+
 </head>
+
 <body>
-  <div id="root"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <script type="text/babel" data-presets="react">
+
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+
 const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
+
+
 // ── Default Data ─────────────────────────────────────────────────────────────
+
 const DEFAULT_ZONES = [
-  { id: "A", name: "A 區" },
-  { id: "B", name: "B 區" },
-  { id: "C", name: "C 區" },
-  { id: "D", name: "D 區" },
-  { id: "E", name: "E 區" },
+
+{ id: "A", name: "A 區" },
+
+{ id: "B", name: "B 區" },
+
+{ id: "C", name: "C 區" },
+
+{ id: "D", name: "D 區" },
+
+{ id: "E", name: "E 區" },
+
 ];
 
+
+
 const DEFAULT_PRODUCTS = [
-  { id: 1,  name: "處方單",          unit: "箱",  note: "", zone: "A", order: 1 },
-  { id: 2,  name: "掛號單",          unit: "箱",  note: "", zone: "A", order: 2 },
-  { id: 3,  name: "粉藥包藥紙",      unit: "箱",  note: "", zone: "A", order: 3 },
-  { id: 4,  name: "水藥包藥紙",      unit: "箱",  note: "", zone: "A", order: 4 },
-  { id: 5,  name: "3M膠布",         unit: "盒",  note: "", zone: "A", order: 5 },
-  { id: 6,  name: "黃土艾炭",        unit: "罐",  note: "", zone: "A", order: 6 },
-  { id: 7,  name: "馬桶坐墊消毒液",  unit: "瓶",  note: "", zone: "A", order: 7 },
-  { id: 8,  name: "泡沫給皂液",      unit: "瓶",  note: "", zone: "A", order: 8 },
-  { id: 9,  name: "不織布",          unit: "包",  note: "", zone: "A", order: 9 },
-  { id: 10, name: "彈性繃帶7CM",     unit: "捲",  note: "", zone: "A", order: 10 },
-  { id: 11, name: "網狀繃帶4號",     unit: "捲",  note: "", zone: "A", order: 11 },
-  { id: 12, name: "網狀繃帶5號",     unit: "捲",  note: "", zone: "A", order: 12 },
-  { id: 13, name: "神效（乾藥布）",  unit: "箱",  note: "", zone: "A", order: 13 },
-  { id: 14, name: "舒痛寧（水性藥布）", unit: "箱", note: "", zone: "A", order: 14 },
-  { id: 15, name: "十字洞巾",        unit: "箱",  note: "", zone: "A", order: 15 },
-  { id: 16, name: "棉球",            unit: "包",  note: "", zone: "A", order: 16 },
-  { id: 17, name: "拔罐杯3號",       unit: "個",  note: "", zone: "B", order: 1 },
-  { id: 18, name: "拔罐杯4號",       unit: "個",  note: "", zone: "B", order: 2 },
-  { id: 19, name: "背膠",            unit: "捲",  note: "", zone: "B", order: 3 },
-  { id: 20, name: "肌內效貼布",      unit: "捲",  note: "", zone: "B", order: 4 },
-  { id: 21, name: "藥膏罐（小）",      unit: "個",  note: "", zone: "B", order: 5 },
-  { id: 22, name: "藥膏罐（大）",      unit: "個",  note: "", zone: "B", order: 6 },
-  { id: 23, name: "鋁罐",            unit: "個",  note: "", zone: "B", order: 7 },
-  { id: 24, name: "清脂激酶罐",      unit: "個",  note: "", zone: "B", order: 8 },
-  { id: 25, name: "紅頭藥罐（大）",     unit: "個",  note: "", zone: "B", order: 9 },
-  { id: 26, name: "紅頭藥罐（小）",     unit: "個",  note: "", zone: "B", order: 10 },
-  { id: 27, name: "金頭藥罐（大）",     unit: "個",  note: "", zone: "B", order: 11 },
-  { id: 28, name: "金頭藥罐（小）",     unit: "個",  note: "", zone: "B", order: 12 },
-  { id: 29, name: "口罩",            unit: "盒",  note: "", zone: "B", order: 13 },
-  { id: 30, name: "三黃粉",          unit: "包",  note: "", zone: "B", order: 14 },
-  { id: 31, name: "乳膠手套S",     unit: "盒",  note: "", zone: "B", order: 15 },
-  { id: 32, name: "乳膠手套M",     unit: "盒",  note: "", zone: "B", order: 16 },
-  { id: 33, name: "針4005",          unit: "盒",  note: "", zone: "C", order: 1 },
-  { id: 34, name: "針4205",          unit: "盒",  note: "", zone: "C", order: 2 },
-  { id: 35, name: "針3410",          unit: "盒",  note: "", zone: "C", order: 3 },
-  { id: 36, name: "針3215",          unit: "盒",  note: "", zone: "C", order: 4 },
-  { id: 37, name: "針2830",          unit: "盒",  note: "", zone: "C", order: 5 },
-  { id: 38, name: "針2840",          unit: "盒",  note: "", zone: "C", order: 6 },
-  { id: 39, name: "推針A2820",       unit: "盒",  note: "", zone: "C", order: 7 },
-  { id: 40, name: "推針A3015",       unit: "盒",  note: "", zone: "C", order: 8 },
-  { id: 41, name: "清鈴針（橘）",    unit: "盒",  note: "", zone: "C", order: 9 },
-  { id: 42, name: "磁珠",            unit: "包",  note: "", zone: "C", order: 10 },
-  { id: 43, name: "耳針",            unit: "盒",  note: "", zone: "C", order: 11 },
-  { id: 44, name: "羊腸線C153",   unit: "盒",  note: "", zone: "C", order: 12 },
-  { id: 45, name: "羊腸線C154",   unit: "盒",  note: "", zone: "C", order: 13 },
-  { id: 46, name: "針頭23G 藍",      unit: "盒",  note: "", zone: "C", order: 14 },
-  { id: 47, name: "針頭22G 黑",      unit: "盒",  note: "", zone: "C", order: 15 },
-  { id: 48, name: "針頭24G 紅",      unit: "盒",  note: "", zone: "C", order: 16 },
-  { id: 49, name: "扁針1號",         unit: "支",  note: "", zone: "C", order: 17 },
-  { id: 50, name: "扁針2號",         unit: "支",  note: "", zone: "C", order: 18 },
-  { id: 51, name: "扁針3號",         unit: "支",  note: "", zone: "C", order: 19 },
-  { id: 52, name: "夾鏈袋1號",       unit: "包",  note: "", zone: "D", order: 1 },
-  { id: 53, name: "夾鏈袋2號",       unit: "包",  note: "", zone: "D", order: 2 },
-  { id: 54, name: "夾鏈袋3號",       unit: "包",  note: "", zone: "D", order: 3 },
-  { id: 55, name: "夾鏈袋4號",       unit: "包",  note: "", zone: "D", order: 4 },
-  { id: 56, name: "夾鏈袋5號",       unit: "包",  note: "", zone: "D", order: 5 },
-  { id: 57, name: "垃圾袋（中）",    unit: "包",  note: "", zone: "D", order: 6 },
-  { id: 58, name: "垃圾袋（大）",    unit: "包",  note: "", zone: "D", order: 7 },
-  { id: 59, name: "錦禾logo袋",      unit: "包",  note: "", zone: "D", order: 8 },
-  { id: 60, name: "優活長版衛生紙",  unit: "箱",  note: "", zone: "D", order: 9 },
-  { id: 61, name: "五月花",          unit: "箱",  note: "", zone: "D", order: 10 },
-  { id: 62, name: "擦手紙",          unit: "箱",  note: "", zone: "D", order: 11 },
-  { id: 63, name: "護膚墊",          unit: "包",  note: "", zone: "D", order: 12 },
-  { id: 64, name: "保鮮盒",          unit: "個",  note: "", zone: "D", order: 13 },
-  { id: 65, name: "紙杯",            unit: "條",  note: "", zone: "D", order: 14 },
-  { id: 66, name: "酒精",            unit: "箱",  note: "一箱6罐", zone: "D", order: 15 },
-  { id: 67, name: "丹田灸網子",      unit: "個",  note: "", zone: "E", order: 1 },
-  { id: 68, name: "電針線",          unit: "條",  note: "", zone: "E", order: 2 },
-  { id: 69, name: "電針線插座",      unit: "個",  note: "", zone: "E", order: 3 },
-  { id: 70, name: "紅外線燈泡",      unit: "個",  note: "", zone: "E", order: 4 },
-  { id: 71, name: "薰針機管子",      unit: "個",  note: "", zone: "E", order: 5 },
-  { id: 72, name: "列表機墨水帶（藥局用）", unit: "個", note: "", zone: "E", order: 6 },
-  { id: 73, name: "列表機墨水帶（櫃檯用）", unit: "個", note: "", zone: "E", order: 7 },
-  { id: 74, name: "垃圾袋（瓶罐）",  unit: "包",  note: "", zone: "E", order: 8 },
-  { id: 75, name: "濾網",            unit: "個",  note: "", zone: "E", order: 9 },
-  { id: 76, name: "地板清潔液",      unit: "瓶",  note: "", zone: "E", order: 10 },
-  { id: 77, name: "浮針",            unit: "盒",  note: "", zone: "E", order: 11 },
-  { id: 78, name: "韓式美顏針（紅）",  unit: "盒",  note: "", zone: "E", order: 12 },
-  { id: 79, name: "韓式美顏針（淺）", unit: "盒", note: "", zone: "E", order: 13 },
-  { id: 80, name: "韓式美顏針（綠）",  unit: "盒",  note: "", zone: "E", order: 14 },
-  { id: 81, name: "韓式美顏針（藍）",  unit: "盒",  note: "", zone: "E", order: 15 },
+
+{ id: 1, name: "處方單", unit: "箱", note: "", zone: "A", order: 1 },
+
+{ id: 2, name: "掛號單", unit: "箱", note: "", zone: "A", order: 2 },
+
+{ id: 3, name: "粉藥包藥紙", unit: "箱", note: "", zone: "A", order: 3 },
+
+{ id: 4, name: "水藥包藥紙", unit: "箱", note: "", zone: "A", order: 4 },
+
+{ id: 5, name: "3M膠布", unit: "盒", note: "", zone: "A", order: 5 },
+
+{ id: 6, name: "黃土艾炭", unit: "罐", note: "", zone: "A", order: 6 },
+
+{ id: 7, name: "馬桶坐墊消毒液", unit: "瓶", note: "", zone: "A", order: 7 },
+
+{ id: 8, name: "泡沫給皂液", unit: "瓶", note: "", zone: "A", order: 8 },
+
+{ id: 9, name: "不織布", unit: "包", note: "", zone: "A", order: 9 },
+
+{ id: 10, name: "彈性繃帶7CM", unit: "捲", note: "", zone: "A", order: 10 },
+
+{ id: 11, name: "網狀繃帶4號", unit: "捲", note: "", zone: "A", order: 11 },
+
+{ id: 12, name: "網狀繃帶5號", unit: "捲", note: "", zone: "A", order: 12 },
+
+{ id: 13, name: "神效（乾藥布）", unit: "箱", note: "", zone: "A", order: 13 },
+
+{ id: 14, name: "舒痛寧（水性藥布）", unit: "箱", note: "", zone: "A", order: 14 },
+
+{ id: 15, name: "十字洞巾", unit: "箱", note: "", zone: "A", order: 15 },
+
+{ id: 16, name: "棉球", unit: "包", note: "", zone: "A", order: 16 },
+
+{ id: 17, name: "拔罐杯3號", unit: "個", note: "", zone: "B", order: 1 },
+
+{ id: 18, name: "拔罐杯4號", unit: "個", note: "", zone: "B", order: 2 },
+
+{ id: 19, name: "背膠", unit: "捲", note: "", zone: "B", order: 3 },
+
+{ id: 20, name: "肌內效貼布", unit: "捲", note: "", zone: "B", order: 4 },
+
+{ id: 21, name: "藥膏罐(小)", unit: "個", note: "", zone: "B", order: 5 },
+
+{ id: 22, name: "藥膏罐(大)", unit: "個", note: "", zone: "B", order: 6 },
+
+{ id: 23, name: "鋁罐", unit: "個", note: "", zone: "B", order: 7 },
+
+{ id: 24, name: "清脂激酶罐", unit: "個", note: "", zone: "B", order: 8 },
+
+{ id: 25, name: "紅頭藥罐 大", unit: "個", note: "", zone: "B", order: 9 },
+
+{ id: 26, name: "紅頭藥罐 小", unit: "個", note: "", zone: "B", order: 10 },
+
+{ id: 27, name: "金頭藥罐 大", unit: "個", note: "", zone: "B", order: 11 },
+
+{ id: 28, name: "金頭藥罐 小", unit: "個", note: "", zone: "B", order: 12 },
+
+{ id: 29, name: "口罩", unit: "盒", note: "", zone: "B", order: 13 },
+
+{ id: 30, name: "三黃粉", unit: "包", note: "", zone: "B", order: 14 },
+
+{ id: 31, name: "乳膠手套S號", unit: "盒", note: "", zone: "B", order: 15 },
+
+{ id: 32, name: "乳膠手套M號", unit: "盒", note: "", zone: "B", order: 16 },
+
+{ id: 33, name: "針4005", unit: "盒", note: "", zone: "C", order: 1 },
+
+{ id: 34, name: "針4205", unit: "盒", note: "", zone: "C", order: 2 },
+
+{ id: 35, name: "針3410", unit: "盒", note: "", zone: "C", order: 3 },
+
+{ id: 36, name: "針3215", unit: "盒", note: "", zone: "C", order: 4 },
+
+{ id: 37, name: "針2830", unit: "盒", note: "", zone: "C", order: 5 },
+
+{ id: 38, name: "針2840", unit: "盒", note: "", zone: "C", order: 6 },
+
+{ id: 39, name: "推針A2820", unit: "盒", note: "", zone: "C", order: 7 },
+
+{ id: 40, name: "推針A3015", unit: "盒", note: "", zone: "C", order: 8 },
+
+{ id: 41, name: "清鈴針（橘）", unit: "盒", note: "", zone: "C", order: 9 },
+
+{ id: 42, name: "磁珠", unit: "包", note: "", zone: "C", order: 10 },
+
+{ id: 43, name: "耳針", unit: "盒", note: "", zone: "C", order: 11 },
+
+{ id: 44, name: "羊腸線C15 3-0", unit: "盒", note: "", zone: "C", order: 12 },
+
+{ id: 45, name: "羊腸線C15 4-0", unit: "盒", note: "", zone: "C", order: 13 },
+
+{ id: 46, name: "針頭23G 藍", unit: "盒", note: "", zone: "C", order: 14 },
+
+{ id: 47, name: "針頭22G 黑", unit: "盒", note: "", zone: "C", order: 15 },
+
+{ id: 48, name: "針頭24G 紅", unit: "盒", note: "", zone: "C", order: 16 },
+
+{ id: 49, name: "扁針1號", unit: "支", note: "", zone: "C", order: 17 },
+
+{ id: 50, name: "扁針2號", unit: "支", note: "", zone: "C", order: 18 },
+
+{ id: 51, name: "扁針3號", unit: "支", note: "", zone: "C", order: 19 },
+
+{ id: 52, name: "夾鏈袋1號", unit: "包", note: "", zone: "D", order: 1 },
+
+{ id: 53, name: "夾鏈袋2號", unit: "包", note: "", zone: "D", order: 2 },
+
+{ id: 54, name: "夾鏈袋3號", unit: "包", note: "", zone: "D", order: 3 },
+
+{ id: 55, name: "夾鏈袋4號", unit: "包", note: "", zone: "D", order: 4 },
+
+{ id: 56, name: "夾鏈袋5號", unit: "包", note: "", zone: "D", order: 5 },
+
+{ id: 57, name: "垃圾袋（中）", unit: "包", note: "", zone: "D", order: 6 },
+
+{ id: 58, name: "垃圾袋（大）", unit: "包", note: "", zone: "D", order: 7 },
+
+{ id: 59, name: "錦禾logo袋", unit: "包", note: "", zone: "D", order: 8 },
+
+{ id: 60, name: "優活長版衛生紙", unit: "箱", note: "", zone: "D", order: 9 },
+
+{ id: 61, name: "五月花", unit: "箱", note: "", zone: "D", order: 10 },
+
+{ id: 62, name: "擦手紙", unit: "箱", note: "", zone: "D", order: 11 },
+
+{ id: 63, name: "護膚墊", unit: "包", note: "", zone: "D", order: 12 },
+
+{ id: 64, name: "保鮮盒", unit: "個", note: "", zone: "D", order: 13 },
+
+{ id: 65, name: "紙杯", unit: "條", note: "", zone: "D", order: 14 },
+
+{ id: 66, name: "酒精", unit: "箱", note: "一箱6罐", zone: "D", order: 15 },
+
+{ id: 67, name: "丹田灸網子", unit: "個", note: "", zone: "E", order: 1 },
+
+{ id: 68, name: "電針線", unit: "條", note: "", zone: "E", order: 2 },
+
+{ id: 69, name: "電針線插座", unit: "個", note: "", zone: "E", order: 3 },
+
+{ id: 70, name: "紅外線燈泡", unit: "個", note: "", zone: "E", order: 4 },
+
+{ id: 71, name: "薰針機管子", unit: "個", note: "", zone: "E", order: 5 },
+
+{ id: 72, name: "列表機墨水帶（藥局用）", unit: "個", note: "", zone: "E", order: 6 },
+
+{ id: 73, name: "列表機墨水帶（櫃檯用）", unit: "個", note: "", zone: "E", order: 7 },
+
+{ id: 74, name: "垃圾袋（瓶罐）", unit: "包", note: "", zone: "E", order: 8 },
+
+{ id: 75, name: "濾網", unit: "個", note: "", zone: "E", order: 9 },
+
+{ id: 76, name: "地板清潔液", unit: "瓶", note: "", zone: "E", order: 10 },
+
+{ id: 77, name: "浮針", unit: "盒", note: "", zone: "E", order: 11 },
+
+{ id: 78, name: "韓式美顏針（紅）", unit: "盒", note: "", zone: "E", order: 12 },
+
+{ id: 79, name: "韓式美顏針（淺）", unit: "盒", note: "", zone: "E", order: 13 },
+
+{ id: 80, name: "韓式美顏針（綠）", unit: "盒", note: "", zone: "E", order: 14 },
+
+{ id: 81, name: "韓式美顏針（藍）", unit: "盒", note: "", zone: "E", order: 15 },
+
 ];
+
+
+
+// qty 1..50
 
 const QTY_OPTIONS = [0, ...Array.from({length: 50}, (_, i) => i + 1)];
 
+
+
 const SK_PRODUCTS = "clinic_products_v3";
-const SK_ORDERS   = "clinic_orders_v3";
-const SK_ZONES    = "clinic_zones_v3";
+
+const SK_ORDERS = "clinic_orders_v3";
+
+const SK_ZONES = "clinic_zones_v3";
+
+
 
 function load(key, fb) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fb; } catch { return fb; }
+
+try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fb; } catch { return fb; }
+
 }
+
 function save(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+
+try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+
 }
+
+
 
 // ── Colours ──────────────────────────────────────────────────────────────────
+
 const C = {
-  bg: "#f3ebe2", surface: "#e8e0d6", border: "#c4b8aa",
-  header: "#7c512e", addBtn: "#556250", primary: "#7c512e",
-  accent: "#9a6b3a", danger: "#DC4C3E",
-  text: "#2e1f0f", sub: "#6b5740", light: "#cac0b5",
-  selected: "#b8c4b2", rowA: "#ddd0c0", rowB: "#939c89",
+
+bg: "#f3ebe2", surface: "#e8e0d6", border: "#c4b8aa",
+
+header: "#7c512e", addBtn: "#556250", primary: "#7c512e",
+
+accent: "#9a6b3a", danger: "#DC4C3E",
+
+text: "#2e1f0f", sub: "#6b5740", light: "#cac0b5",
+
+selected: "#b8c4b2", rowA: "#ddd0c0", rowB: "#939c89",
+
 };
+
+
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-const IcoSearch   = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const IcoPlus     = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IcoEdit     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const IcoTrash    = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
-const IcoCheck    = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
-const IcoExport   = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-const IcoHistory  = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-const IcoList     = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
+
+const IcoSearch = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+
+const IcoPlus = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+
+const IcoEdit = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+
+const IcoTrash = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+
+const IcoCheck = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
+
+const IcoExport = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+
+const IcoHistory = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+
+const IcoList = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
+
 const IcoSettings = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
-const IcoCopy     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
-const IcoInfo     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
-const IcoUp       = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>;
-const IcoDown     = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>;
-const IcoBack     = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>;
+
+const IcoCopy = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+
+const IcoInfo = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+
+const IcoUp = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>;
+
+const IcoDown = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>;
+
+const IcoDrag = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/></svg>;
+
+const IcoBack = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>;
+
+
 
 const inputStyle = {
-  width: "100%", boxSizing: "border-box",
-  border: `1.5px solid ${C.border}`, borderRadius: 10,
-  padding: "10px 12px", fontSize: 15, color: C.text,
-  background: C.surface, outline: "none", fontFamily: "inherit",
+
+width: "100%", boxSizing: "border-box",
+
+border: `1.5px solid ${C.border}`, borderRadius: 10,
+
+padding: "10px 12px", fontSize: 15, color: C.text,
+
+background: C.surface, outline: "none", fontFamily: "inherit",
+
 };
+
 const btnPrimary = {
-  background: C.primary, color: "#fff", border: "none",
-  borderRadius: 12, padding: "13px 0",
-  fontSize: 15, fontWeight: 700, cursor: "pointer", width: "100%",
+
+background: C.primary, color: "#fff", border: "none",
+
+borderRadius: 12, padding: "13px 0",
+
+fontSize: 15, fontWeight: 700, cursor: "pointer", width: "100%",
+
 };
+
+
 
 // ── Helper: generate order id ─────────────────────────────────────────────────
+
 function genOrderId(existingOrders) {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const label = `${month}月`;
-  const sameMonth = existingOrders.filter(o => o.monthLabel === label);
-  return sameMonth.length === 0 ? `${label}叫貨` : `${label}追加`;
+
+const now = new Date();
+
+const month = now.getMonth() + 1;
+
+const label = `${month}月`;
+
+const sameMonth = existingOrders.filter(o => o.monthLabel === label);
+
+return sameMonth.length === 0 ? `${label}叫貨` : `${label}追加`;
+
 }
+
+
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
+
 function Modal({ title, onClose, children }) {
-  return (
-    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, margin:"0 auto", padding:"20px 20px 36px", maxHeight:"85vh", overflowY:"auto" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-          <span style={{ fontWeight:700, fontSize:17, color:C.text }}>{title}</span>
-          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:22, color:C.sub, cursor:"pointer", lineHeight:1 }}>✕</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
+
+return (
+
+<div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+
+<div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, margin:"0 auto", padding:"20px 20px 36px", maxHeight:"85vh", overflowY:"auto" }}>
+
+<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+
+<span style={{ fontWeight:700, fontSize:17, color:C.text }}>{title}</span>
+
+<button onClick={onClose} style={{ background:"none", border:"none", fontSize:22, color:C.sub, cursor:"pointer", lineHeight:1 }}>✕</button>
+
+</div>
+
+{children}
+
+</div>
+
+</div>
+
+);
+
 }
+
+
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
+
 function Toast({ msg, onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 2000); return () => clearTimeout(t); }, []);
-  return (
-    <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", background:C.text, color:"#fff", padding:"10px 22px", borderRadius:24, fontSize:14, fontWeight:600, zIndex:300, boxShadow:"0 4px 16px rgba(0,0,0,0.2)", whiteSpace:"nowrap" }}>{msg}</div>
-  );
+
+useEffect(() => { const t = setTimeout(onDone, 2000); return () => clearTimeout(t); }, []);
+
+return (
+
+<div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", background:C.text, color:"#fff", padding:"10px 22px", borderRadius:24, fontSize:14, fontWeight:600, zIndex:300, boxShadow:"0 4px 16px rgba(0,0,0,0.2)", whiteSpace:"nowrap" }}>{msg}</div>
+
+);
+
 }
+
+
 
 // ── Main App ──────────────────────────────────────────────────────────────────
+
 function App() {
-  const [products, setProducts] = useState(() => load(SK_PRODUCTS, DEFAULT_PRODUCTS));
-  const [zones,    setZones]    = useState(() => load(SK_ZONES, DEFAULT_ZONES));
-  const [orders,   setOrders]   = useState(() => load(SK_ORDERS, []));
-  const [qty,      setQty]      = useState({});
-  const [search,   setSearch]   = useState("");
-  const [tab,      setTab]      = useState("order");
-  const [toast,    setToast]    = useState("");
 
-  // manage sub-state
-  const [manageView, setManageView] = useState("zones"); // zones | products
-  const [activeZone, setActiveZone] = useState(null);
+const [products, setProducts] = useState(() => load(SK_PRODUCTS, DEFAULT_PRODUCTS));
 
-  // modals
-  const [showExport,   setShowExport]   = useState(false);
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [editItem,     setEditItem]     = useState(null);
-  const [deleteItem,   setDeleteItem]   = useState(null);
-  const [showOrderDetail, setShowOrderDetail] = useState(null);
-  const [showAddZone,  setShowAddZone]  = useState(false);
-  const [deleteZone,   setDeleteZone]   = useState(null);
-  const [editZone,     setEditZone]     = useState(null);
+const [zones, setZones] = useState(() => load(SK_ZONES, DEFAULT_ZONES));
 
-  // New modals for history order manipulation
-  const [orderToDelete, setOrderToDelete] = useState(null);
-  const [orderToEdit, setOrderToEdit] = useState(null);
-  const [editingOrderItems, setEditingOrderItems] = useState([]);
+const [orders, setOrders] = useState(() => load(SK_ORDERS, []));
 
-  // forms
-  const [form,     setForm]     = useState({ name:"", unit:"", note:"", zone:"A" });
-  const [zoneForm, setZoneForm] = useState({ name:"" });
+const [qty, setQty] = useState({});
 
-  useEffect(() => save(SK_PRODUCTS, products), [products]);
-  useEffect(() => save(SK_ORDERS,   orders),   [orders]);
-  useEffect(() => save(SK_ZONES,    zones),    [zones]);
+const [search, setSearch] = useState("");
 
-  // ── Sorted products for ORDER tab (by zone order, then item order) ──────────
-  const orderedProducts = useMemo(() => {
-    const zoneOrder = zones.map(z => z.id);
-    return [...products].sort((a, b) => {
-      const za = zoneOrder.indexOf(a.zone);
-      const zb = zoneOrder.indexOf(b.zone);
-      if (za !== zb) return za - zb;
-      return (a.order || 0) - (b.order || 0);
-    });
-  }, [products, zones]);
+const [tab, setTab] = useState("order");
 
-  const filteredProducts = useMemo(() =>
-    orderedProducts.filter(p => p.name.includes(search)),
-    [orderedProducts, search]
-  );
+const [toast, setToast] = useState("");
 
-  const selectedItems = useMemo(() =>
-    orderedProducts.filter(p => qty[p.id] > 0).map(p => ({ ...p, qty: qty[p.id] })),
-    [orderedProducts, qty]
-  );
 
-  const exportText = useMemo(() =>
-    selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
-    [selectedItems]
-  );
 
-  // Products in active zone for manage tab
-  const zoneProducts = useMemo(() => {
-    if (!activeZone) return [];
-    return products
-      .filter(p => p.zone === activeZone)
-      .sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [products, activeZone]);
+// manage sub-state
 
-  // ── Order submit (同時進行儲存與複製文字) ──────────────────────────────────────
-  function handleSubmitOrder() {
-    if (selectedItems.length === 0) { setToast("請先選擇品項數量"); return; }
-    const now = new Date();
-    const monthLabel = `${now.getMonth() + 1}月`;
-    const id = genOrderId(orders);
-    const order = {
-      id,
-      monthLabel,
-      time: now.toLocaleString("zh-TW", { hour12: false }),
-      items: selectedItems.map(i => ({ name: i.name, qty: i.qty, unit: i.unit })),
-    };
-    
-    setOrders(prev => [order, ...prev]);
-    setQty({});
-    setShowExport(false);
+const [manageView, setManageView] = useState("zones"); // zones | products
 
-    if (exportText) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(exportText)
-          .then(() => setToast("叫貨單已儲存並複製到剪貼簿！"))
-          .catch(() => setToast("已儲存，但複製失敗請手動複製"));
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = exportText;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        setToast("叫貨單已儲存並複製到剪貼簿！");
-      }
-    } else {
-      setToast("叫貨單已儲存！");
-    }
-  }
+const [activeZone, setActiveZone] = useState(null);
 
-  function handleCopyExport() {
-    if (exportText) {
-      navigator.clipboard.writeText(exportText).then(() => setToast("已複製到剪貼簿！")).catch(() => setToast("請手動複製"));
-    }
-  }
+const [dragId, setDragId] = useState(null);
 
-  // ── History Order Actions ────────────────────────────────────────────────────
-  function handleOpenEditOrder(order) {
-    setOrderToEdit(order);
-    setEditingOrderItems(JSON.parse(JSON.stringify(order.items)));
-  }
+const [longPressId, setLongPressId] = useState(null);
 
-  function handleUpdateOrderItemQty(index, newQty) {
-    setEditingOrderItems(prev => prev.map((item, i) => i === index ? { ...item, qty: newQty } : item));
-  }
+const longPressTimer = useRef(null);
 
-  function handleSaveEditOrder() {
-    const finalItems = editingOrderItems.filter(item => item.qty > 0);
-    if (finalItems.length === 0) {
-      setToast("品項數量不可全部為0，如不需此單請直接刪除");
-      return;
-    }
-    setOrders(prev => prev.map(o => (o.id === orderToEdit.id && o.time === orderToEdit.time) ? { ...o, items: finalItems } : o));
-    setOrderToEdit(null);
-    setToast("訂單內容已更新！");
-  }
 
-  function handleDeleteOrder() {
-    setOrders(prev => prev.filter(o => !(o.id === orderToDelete.id && o.time === orderToDelete.time)));
-    if (showOrderDetail === (orderToDelete.id + orderToDelete.time)) {
-      setShowOrderDetail(null);
-    }
-    setOrderToDelete(null);
-    setToast("訂單已刪除");
-  }
 
-  // ── Product Sorting by arrow ─────────────────────────────────────────────────
-  function handleMoveProduct(prodId, direction) {
-    const p = products.find(x => x.id === prodId);
-    if (!p) return;
-    const sameZone = products.filter(x => x.zone === p.zone).sort((a,b) => (a.order||0) - (b.order||0));
-    const idx = sameZone.findIndex(x => x.id === prodId);
-    if (idx === -1) return;
-    const nextIdx = idx + direction;
-    if (nextIdx < 0 || nextIdx >= sameZone.length) return;
+// modals
 
-    const target = sameZone[nextIdx];
-    const tempOrder = p.order;
-    p.order = target.order;
-    target.order = tempOrder;
+const [showExport, setShowExport] = useState(false);
 
-    setProducts([...products]);
-  }
+const [showAdd, setShowAdd] = useState(false);
 
-  // ── Rendering ────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ background:C.bg, minHeight:"100vh", paddingBottom:80, color:C.text }}>
-      {/* Header */}
-      <div style={{ background:C.header, color:"#fff", padding:"16px", textAlign:"center", fontSize:18, fontWeight:700, position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
-        錦禾倉庫叫貨系統
-      </div>
+const [editItem, setEditItem] = useState(null);
 
-      {/* TAB 1: ORDER */}
-      {tab === "order" && (
-        <div style={{ padding:14 }}>
-          {/* Search bar */}
-          <div style={{ position:"relative", marginBottom:14 }}>
-            <span style={{ position:"absolute", left:12, top:12, color:C.sub }}><IcoSearch/></span>
-            <input type="text" placeholder="搜尋品項名稱..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputStyle, paddingLeft:36 }} />
-            {search && <button onClick={() => setSearch("")} style={{ position:"absolute", right:12, top:10, border:"none", background:"none", fontSize:16, color:C.sub }}>✕</button>}
-          </div>
+const [deleteItem, setDeleteItem] = useState(null);
 
-          {/* Product List */}
-          <div>
-            {(() => {
-              let currentZoneId = null;
-              return filteredProducts.map(p => {
-                const zoneObj = zones.find(z => z.id === p.zone);
-                const zoneName = zoneObj ? zoneObj.name : p.zone;
-                const isFirstInZone = p.zone !== currentZoneId;
-                currentZoneId = p.zone;
+const [showOrderDetail, setShowOrderDetail] = useState(null);
 
-                const currentQty = qty[p.id] || 0;
+const [showAddZone, setShowAddZone] = useState(false);
 
-                return (
-                  <div key={p.id}>
-                    {isFirstInZone && (
-                      <div style={{ background:C.border, color:C.text, padding:"4px 10px", fontWeight:700, fontSize:14, borderRadius:6, margin:"16px 0 8px", display:"inline-block" }}>
-                        {zoneName}
-                      </div>
-                    )}
-                    <div style={{ background: currentQty > 0 ? C.selected : C.surface, borderRadius:12, padding:"10px 12px", marginBottom:8, display:"flex", justifyContent:"space-between", alignItems:"center", border: currentQty > 0 ? `1.5px solid ${C.addBtn}` : "1.5px solid transparent", transition:"all 0.15s ease" }}>
-                      <div style={{ flex:1, marginRight:8 }}>
-                        <div style={{ fontWeight:600, fontSize:15, color:C.text }}>{p.name}</div>
-                        {/* 修正點：前台叫貨品項的備註前加上 📌 */}
-                        {p.note && <div style={{ fontSize:12, color:C.sub, marginTop:2, display:"flex", alignItems:"center", gap:3 }}><IcoInfo/>📌{p.note}</div>}
-                      </div>
-                      
-                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                        <span style={{ fontSize:13, color:C.sub, marginRight:4 }}>({p.unit})</span>
-                        <select value={currentQty} onChange={e => setQty(prev => ({ ...prev, [p.id]: parseInt(e.target.value) }))} style={{ border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", fontSize:15, background:"#fff", color:C.text, outline:"none", fontWeight:currentQty > 0 ? 700 : 400 }}>
-                          {QTY_OPTIONS.map(q => <option key={q} value={q}>{q === 0 ? "-" : q}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
+const [deleteZone, setDeleteZone] = useState(null);
 
-          {/* Floating Export Trigger */}
-          {selectedItems.length > 0 && (
-            <div style={{ position:"fixed", bottom:76, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:440, padding:"0 14px", zIndex:90 }}>
-              <button onClick={() => setShowExport(true)} style={{ ...btnPrimary, display:"flex", justifyContent:"center", alignItems:"center", gap:8, boxShadow:"0 4px 16px rgba(124,81,46,0.4)", background:C.accent }}>
-                <IcoCheck/> 確認叫貨清單 ({selectedItems.length})
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+const [editZone, setEditZone] = useState(null);
 
-      {/* TAB 2: HISTORY */}
-      {tab === "history" && (
-        <div style={{ padding:14 }}>
-          <h3 style={{ fontSize:16, marginBottom:12, color:C.text, fontWeight:700 }}>歷史叫貨紀錄</h3>
-          {orders.length === 0 ? (
-            <div style={{ textAlign:"center", padding:"40px 0", color:C.sub, fontSize:14 }}>暫無叫貨紀錄</div>
-          ) : (
-            orders.map((o, idx) => {
-              const isDetailOpen = showOrderDetail === (o.id + o.time);
-              return (
-                <div key={idx} style={{ background:C.surface, borderRadius:12, padding:12, marginBottom:10, border:`1px solid ${C.border}` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                    <div style={{ cursor:"pointer", flex:1 }} onClick={() => setShowOrderDetail(isDetailOpen ? null : (o.id + o.time))}>
-                      <div style={{ fontWeight:700, fontSize:15, color:C.text, display:"flex", alignItems:"center", gap:6 }}>
-                        {o.id}
-                        <span style={{ fontSize:12, fontWeight:400, color:C.sub, background:C.border, padding:"1px 6px", borderRadius:4 }}>
-                          {o.items.length} 品項
-                        </span>
-                      </div>
-                      <div style={{ fontSize:12, color:C.sub, marginTop:4 }}>時間: {o.time}</div>
-                    </div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <button onClick={() => handleOpenEditOrder(o)} style={{ background:"none", border:"none", color:C.accent, cursor:"pointer", padding:4 }}><IcoEdit/></button>
-                      <button onClick={() => setOrderToDelete(o)} style={{ background:"none", border:"none", color:C.danger, cursor:"pointer", padding:4 }}><IcoTrash/></button>
-                    </div>
-                  </div>
 
-                  {isDetailOpen && (
-                    <div style={{ marginTop:10, paddingTop:10, borderTop:`1px dashed ${C.border}`, fontSize:14, color:C.text }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                        <tbody>
-                          {o.items.map((it, iIdx) => (
-                            <tr key={iIdx} style={{ borderBottom: iIdx === o.items.length - 1 ? "none" : `1px solid ${C.bg}` }}>
-                              <td style={{ padding:"4px 0", fontWeight:500 }}>{it.name}</td>
-                              <td style={{ padding:"4px 0", textAlign:"right", color:C.sub }}>{it.qty} {it.unit}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <button onClick={() => {
-                        const txt = o.items.map(it => `${it.name} * ${it.qty}${it.unit}`).join("\n");
-                        navigator.clipboard.writeText(txt).then(() => setToast("已複製該單文字！"));
-                      }} style={{ marginTop:10, width:"100%", background:C.border, border:"none", borderRadius:8, padding:"6px 0", fontSize:12, fontWeight:600, color:C.text, cursor:"pointer", display:"flex", justifyContent:"center", alignItems:"center", gap:4 }}>
-                        <IcoCopy/> 複製此單文字
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
 
-      {/* TAB 3: MANAGE */}
-      {tab === "manage" && (
-        <div style={{ padding:14 }}>
-          {manageView === "zones" ? (
-            <div>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-                <h3 style={{ fontSize:16, color:C.text, fontWeight:700 }}>管理存放分區</h3>
-                <button onClick={() => { setZoneForm({name:""}); setShowAddZone(true); }} style={{ background:C.addBtn, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><IcoPlus/>新增分區</button>
-              </div>
-              
-              {zones.map(z => (
-                <div key={z.id} style={{ background:C.surface, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", justifyContent:"space-between", alignItems:"center", border:`1px solid ${C.border}` }}>
-                  <div style={{ flex:1, cursor:"pointer" }} onClick={() => { setActiveZone(z.id); setManageView("products"); }}>
-                    <span style={{ fontWeight:700, color:C.primary, marginRight:8 }}>[{z.id}]</span>
-                    <span style={{ fontWeight:600 }}>{z.name}</span>
-                    <span style={{ fontSize:12, color:C.sub, marginLeft:8 }}>({products.filter(p => p.zone === z.id).length} 品項)</span>
-                  </div>
-                  <div style={{ display:"flex", gap:10 }}>
-                    <button onClick={() => { setZoneForm({name:z.name}); setEditZone(z); }} style={{ background:"none", border:"none", color:C.accent, cursor:"pointer" }}><IcoEdit/></button>
-                    <button onClick={() => setDeleteZone(z)} style={{ background:"none", border:"none", color:C.danger, cursor:"pointer" }}><IcoTrash/></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div>
-              {/* Product list within a zone */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-                <button onClick={() => { setManageView("zones"); setActiveZone(null); }} style={{ background:"none", border:"none", color:C.text, cursor:"pointer", display:"flex", alignItems:"center" }}><IcoBack/></button>
-                <h3 style={{ fontSize:16, fontWeight:700 }}>{zones.find(z => z.id === activeZone)?.name} - 品項管理</h3>
-                <button onClick={() => { setForm({ name:"", unit:"箱", note:"", zone:activeZone }); setShowAdd(true); }} style={{ marginLeft:"auto", background:C.addBtn, color:"#fff", border:"none", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><IcoPlus/>新增品項</button>
-              </div>
+// New modals for history order manipulation
 
-              <div style={{ background: C.surface, borderRadius: 14, padding: 8, border: `1px solid ${C.border}` }}>
-                {zoneProducts.length === 0 ? (
-                  <div style={{ textAlign:"center", padding:"30px 0", color:C.sub, fontSize:14 }}>此區尚無品項</div>
-                ) : (
-                  zoneProducts.map((p, idx) => (
-                    <div 
-                      key={p.id} 
-                      style={{ 
-                        background: "#fff", 
-                        borderRadius: 10, 
-                        padding: "10px 12px", 
-                        marginBottom: idx === zoneProducts.length - 1 ? 0 : 8, 
-                        display: "flex", 
-                        alignItems: "center", 
-                        border: `1px solid ${C.border}`,
-                        userSelect: "none",
-                        WebkitUserSelect: "none"
-                      }}
-                    >
-                      {/* Name & Note */}
-                      <div style={{ flex: 1, marginRight: 8 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{p.name}</div>
-                        {/* 修正點：後台品項管理的備註前加上 📌 */}
-                        <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>單位: {p.unit} {p.note ? `| 備註: 📌${p.note}` : ""}</div>
-                      </div>
+const [orderToDelete, setOrderToDelete] = useState(null);
 
-                      {/* Control buttons */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button 
-                          onClick={() => handleMoveProduct(p.id, -1)} 
-                          disabled={idx === 0} 
-                          style={{ background: C.bg, border: "none", borderRadius: 6, width: 28, height: 28, display: "flex", justifyContent: "center", alignItems: "center", color: idx === 0 ? C.light : C.text, cursor: idx === 0 ? "default" : "pointer" }}
-                        >
-                          <IcoUp />
-                        </button>
-                        <button 
-                          onClick={() => handleMoveProduct(p.id, 1)} 
-                          disabled={idx === zoneProducts.length - 1} 
-                          style={{ background: C.bg, border: "none", borderRadius: 6, width: 28, height: 28, display: "flex", justifyContent: "center", alignItems: "center", color: idx === zoneProducts.length - 1 ? C.light : C.text, cursor: idx === zoneProducts.length - 1 ? "default" : "pointer" }}
-                        >
-                          <IcoDown />
-                        </button>
-                        <div style={{ width: 1, height: 16, background: C.border, margin: "0 2px" }}></div>
-                        <button onClick={() => { setForm({ name: p.name, unit: p.unit, note: p.note, zone: p.zone }); setEditItem(p); }} style={{ background: "none", border: "none", color: C.accent, cursor: "pointer", padding: 4 }}><IcoEdit /></button>
-                        <button onClick={() => setDeleteItem(p)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", padding: 4 }}><IcoTrash /></button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+const [orderToEdit, setOrderToEdit] = useState(null);
 
-      {/* Nav bar */}
-      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:C.surface, borderTop:`1.5px solid ${C.border}`, display:"flex", height:64, zIndex:150 }}>
-        <button onClick={() => { setTab("order"); setManageView("zones"); setActiveZone(null); }} style={{ flex:1, border:"none", background:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color: tab === "order" ? C.primary : C.sub, gap:3, cursor:"pointer" }}>
-          <IcoList/><span style={{ fontSize:11, fontWeight: tab === "order" ? 700 : 500 }}>倉庫叫貨</span>
-        </button>
-        <button onClick={() => { setTab("history"); setManageView("zones"); setActiveZone(null); }} style={{ flex:1, border:"none", background:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color: tab === "history" ? C.primary : C.sub, gap:3, cursor:"pointer" }}>
-          <IcoHistory/><span style={{ fontSize:11, fontWeight: tab === "history" ? 700 : 500 }}>叫貨紀錄</span>
-        </button>
-        <button onClick={() => setTab("manage")} style={{ flex:1, border:"none", background:"none", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color: tab === "manage" ? C.primary : C.sub, gap:3, cursor:"pointer" }}>
-          <IcoSettings/><span style={{ fontSize:11, fontWeight: tab === "manage" ? 700 : 500 }}>後台管理</span>
-        </button>
-      </div>
+const [editingOrderItems, setEditingOrderItems] = useState([]);
 
-      {/* ── MODAL: 儲存並複製清單 ── */}
-      {showExport && (
-        <Modal title="確認叫貨清單" onClose={() => setShowExport(false)}>
-          <div style={{ background:"#fff", borderRadius:12, padding:12, border:`1px solid ${C.border}`, maxHeight:"35vh", overflowY:"auto", marginBottom:14 }}>
-            <pre style={{ fontFamily:"inherit", fontSize:14, whiteSpace:"pre-wrap", color:C.text, margin:0 }}>{exportText}</pre>
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={handleSubmitOrder} style={{ ...btnPrimary, flex:1, background:C.addBtn }}>儲存並複製</button>
-            <button onClick={() => setShowExport(false)} style={{ ...btnPrimary, flex:1, background:C.border, color:C.text }}>返回修改</button>
-          </div>
-        </Modal>
-      )}
 
-      {/* ── MODAL: Add Product ── */}
-      {showAdd && (
-        <Modal title="新增品項" onClose={() => setShowAdd(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
-            <div>
-              <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>品項名稱</label>
-              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={inputStyle} placeholder="例如：針4005" />
-            </div>
-            <div style={{ display:"flex", gap:10 }}>
-              <div style={{ flex:1 }}>
-                <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>單位</label>
-                <input type="text" value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} style={inputStyle} placeholder="箱 / 包 / 盒" />
-              </div>
-              <div style={{ flex:1 }}>
-                <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>存放分區</label>
-                <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} style={{ ...inputStyle, background:"#fff" }}>
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>備註說明 (選填)</label>
-              <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} style={inputStyle} placeholder="例如：一箱6罐" />
-            </div>
-          </div>
-          <button onClick={() => {
-            if (!form.name || !form.unit) { setToast("請填寫名稱與單位"); return; }
-            const sameZoneItems = products.filter(x => x.zone === form.zone);
-            const maxOrder = sameZoneItems.reduce((max, item) => (item.order || 0) > max ? item.order : max, 0);
-            const newProd = { id: Date.now(), name: form.name, unit: form.unit, note: form.note, zone: form.zone, order: maxOrder + 1 };
-            setProducts([...products, newProd]);
-            setShowAdd(false);
-            setToast("已新增品項！");
-          }} style={btnPrimary}>確認新增</button>
-        </Modal>
-      )}
 
-      {/* ── MODAL: Edit Product ── */}
-      {editItem && (
-        <Modal title="編輯品項" onClose={() => setEditItem(null)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
-            <div>
-              <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>品項名稱</label>
-              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={inputStyle} />
-            </div>
-            <div style={{ display:"flex", gap:10 }}>
-              <div style={{ flex:1 }}>
-                <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>單位</label>
-                <input type="text" value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} style={inputStyle} />
-              </div>
-              <div style={{ flex:1 }}>
-                <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>存放分區</label>
-                <select value={form.zone} onChange={e => setForm({...form, zone: e.target.value})} style={{ ...inputStyle, background:"#fff" }}>
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>備註說明</label>
-              <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} style={inputStyle} />
-            </div>
-          </div>
-          <button onClick={() => {
-            setProducts(prev => prev.map(p => p.id === editItem.id ? { ...p, name: form.name, unit: form.unit, note: form.note, zone: form.zone } : p));
-            setEditItem(null);
-            setToast("品項已更新");
-          }} style={btnPrimary}>儲存變更</button>
-        </Modal>
-      )}
+// forms
 
-      {/* ── MODAL: Delete Product Confirm ── */}
-      {deleteItem && (
-        <Modal title="刪除品項確認" onClose={() => setDeleteItem(null)}>
-          <p style={{ fontSize:15, color:C.text, marginBottom:20, lineHeight:1.5 }}>確定要刪除 <b style={{color:C.danger}}>{deleteItem.name}</b> 嗎？此動作無法復原。</p>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={() => {
-              setProducts(prev => prev.filter(p => p.id !== deleteItem.id));
-              setDeleteItem(null);
-              setToast("品項已刪除");
-            }} style={{ ...btnPrimary, background:C.danger }}>確認刪除</button>
-            <button onClick={() => setDeleteItem(null)} style={{ ...btnPrimary, background:C.border, color:C.text }}>取消</button>
-          </div>
-        </Modal>
-      )}
+const [form, setForm] = useState({ name:"", unit:"", note:"", zone:"A" });
 
-      {/* ── MODAL: Add Zone ── */}
-      {showAddZone && (
-        <Modal title="新增存放分區" onClose={() => setShowAddZone(false)}>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>分區名稱 (例如：F 區)</label>
-            <input type="text" value={zoneForm.name} onChange={e => setZoneForm({name: e.target.value})} style={inputStyle} placeholder="輸入新分區名稱" />
-          </div>
-          <button onClick={() => {
-            if (!zoneForm.name.trim()) return;
-            const nextLetter = String.fromCharCode(65 + zones.length);
-            setZones([...zones, { id: nextLetter, name: zoneForm.name.trim() }]);
-            setShowAddZone(false);
-            setToast("已新增分區！");
-          }} style={btnPrimary}>確認新增</button>
-        </Modal>
-      )}
+const [zoneForm, setZoneForm] = useState({ name:"" });
 
-      {/* ── MODAL: Edit Zone ── */}
-      {editZone && (
-        <Modal title="編輯分區名稱" onClose={() => setEditZone(null)}>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:4, display:"block" }}>分區名稱</label>
-            <input type="text" value={zoneForm.name} onChange={e => setZoneForm({name: e.target.value})} style={inputStyle} />
-          </div>
-          <button onClick={() => {
-            if (!zoneForm.name.trim()) return;
-            setZones(prev => prev.map(z => z.id === editZone.id ? { ...z, name: zoneForm.name.trim() } : z));
-            setEditZone(null);
-            setToast("分區名稱已更新");
-          }} style={btnPrimary}>儲存變更</button>
-        </Modal>
-      )}
 
-      {/* ── MODAL: Delete Zone Confirm ── */}
-      {deleteZone && (
-        <Modal title="刪除分區確認" onClose={() => setDeleteZone(null)}>
-          <p style={{ fontSize:15, color:C.text, marginBottom:10, lineHeight:1.5 }}>確定要刪除 <b>{deleteZone.name}</b> 嗎？</p>
-          <p style={{ fontSize:13, color:C.danger, marginBottom:20, fontWeight:600 }}>警告：該分區底下的所有品項也將同步被刪除！</p>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={() => {
-              setZones(prev => prev.filter(z => z.id !== deleteZone.id));
-              setProducts(prev => prev.filter(p => p.zone !== deleteZone.id));
-              setDeleteZone(null);
-              setToast("分區及旗下品項已刪除");
-            }} style={{ ...btnPrimary, background:C.danger }}>確認刪除</button>
-            <button onClick={() => setDeleteZone(null)} style={{ ...btnPrimary, background:C.border, color:C.text }}>取消</button>
-          </div>
-        </Modal>
-      )}
 
-      {/* ── MODAL: Edit History Order ── */}
-      {orderToEdit && (
-        <Modal title={`編輯紀錄 - ${orderToEdit.id}`} onClose={() => setOrderToEdit(null)}>
-          <div style={{ maxHeight:"40vh", overflowY:"auto", marginBottom:16, display:"flex", flexDirection:"column", gap:10, background:"#fff", padding:10, borderRadius:10, border:`1px solid ${C.border}` }}>
-            {editingOrderItems.map((item, index) => (
-              <div key={index} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:8, borderBottom: index === editingOrderItems.length - 1 ? "none" : `1px solid ${C.bg}` }}>
-                <span style={{ fontSize:14, fontWeight:500 }}>{item.name}</span>
-                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                  <span style={{ fontSize:12, color:C.sub }}>({item.unit})</span>
-                  <select value={item.qty} onChange={e => handleUpdateOrderItemQty(index, parseInt(e.target.value))} style={{ border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:14, background:C.bg }}>
-                    {QTY_OPTIONS.map(q => <option key={q} value={q}>{q}</option>)}
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={handleSaveEditOrder} style={{ ...btnPrimary, background:C.addBtn, flex:1 }}>儲存修改</button>
-            <button onClick={() => setOrderToEdit(null)} style={{ ...btnPrimary, background:C.border, color:C.text, flex:1 }}>取消</button>
-          </div>
-        </Modal>
-      )}
+useEffect(() => save(SK_PRODUCTS, products), [products]);
 
-      {/* ── MODAL: Delete History Order Confirm ── */}
-      {orderToDelete && (
-        <Modal title="刪除叫貨紀錄確認" onClose={() => setOrderToDelete(null)}>
-          <p style={{ fontSize:15, color:C.text, marginBottom:6 }}>確定要刪除此筆叫貨紀錄嗎？</p>
-          <p style={{ fontSize:13, color:C.sub, marginBottom:20 }}>單號：{orderToDelete.id} ({orderToDelete.time})</p>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={handleDeleteOrder} style={{ ...btnPrimary, background:C.danger, flex:1 }}>確認刪除</button>
-            <button onClick={() => setOrderToDelete(null)} style={{ ...btnPrimary, background:C.border, color:C.text, flex:1 }}>取消</button>
-          </div>
-        </Modal>
-      )}
+useEffect(() => save(SK_ORDERS, orders), [orders]);
 
-      {/* Toast Notification */}
-      {toast && <Toast msg={toast} onDone={() => setToast("")} />}
-    </div>
-  );
+useEffect(() => save(SK_ZONES, zones), [zones]);
+
+
+
+// ── Sorted products for ORDER tab (by zone order, then item order) ──────────
+
+const orderedProducts = useMemo(() => {
+
+const zoneOrder = zones.map(z => z.id);
+
+return [...products].sort((a, b) => {
+
+const za = zoneOrder.indexOf(a.zone);
+
+const zb = zoneOrder.indexOf(b.zone);
+
+if (za !== zb) return za - zb;
+
+return (a.order || 0) - (b.order || 0);
+
+});
+
+}, [products, zones]);
+
+
+
+const filteredProducts = useMemo(() =>
+
+orderedProducts.filter(p => p.name.includes(search)),
+
+[orderedProducts, search]
+
+);
+
+
+
+const selectedItems = useMemo(() =>
+
+orderedProducts.filter(p => qty[p.id] > 0).map(p => ({ ...p, qty: qty[p.id] })),
+
+[orderedProducts, qty]
+
+);
+
+
+
+const exportText = useMemo(() =>
+
+selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
+
+[selectedItems]
+
+);
+
+
+
+// Products in active zone for manage tab
+
+const zoneProducts = useMemo(() => {
+
+if (!activeZone) return [];
+
+return products
+
+.filter(p => p.zone === activeZone)
+
+.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+}, [products, activeZone]);
+
+
+
+// ── Order submit ──────────────────────────────────────────────────────────────
+
+function handleSubmitOrder() {
+
+if (selectedItems.length === 0) { setToast("請先選擇品項數量"); return; }
+
+const now = new Date();
+
+const monthLabel = `${now.getMonth() + 1}月`;
+
+const id = genOrderId(orders);
+
+const order = {
+
+id,
+
+monthLabel,
+
+time: now.toLocaleString("zh-TW", { hour12: false }),
+
+items: selectedItems.map(i => ({ name: i.name, qty: i.qty, unit: i.unit })),
+
+};
+
+setOrders(prev => [order, ...prev]);
+
+setQty({});
+
+setShowExport(false);
+
+setToast("叫貨單已儲存！");
+
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-  </script>
-</body>
-</html>
+
+
+function handleCopyExport() {
+
+if (exportText) {
+
+navigator.clipboard.writeText(exportText).then(() => setToast("已複製到剪貼簿！")).catch(() => setToast("請手動複製"));
+
+}
+
+}
+
+
+
+// ── History Order Actions ────────────────────────────────────────────────────
+
+function handleOpenEditOrder(order) {
+
+setOrderToEdit(order);
+
+setEditingOrderItems(JSON.parse(JSON.stringify(order.items))); // 深度複製
+
+}
+
+
+
+function handleUpdateOrderItemQty(index, newQty) {
+
+setEditingOrderItems(prev => prev.map((item, i) => i === index ? { ...item, qty: newQty } : item));
+
+}
+
+
+
+function handleSaveEditOrder() {
+
+// 濾除數量大於 0 的品項
+
+const finalItems = editingOrderItems.filter(item => item.qty > 0);
+
+if (finalItems.length === 0) {
+
+setToast("品項數量不可全部為0，如不需此單請直接刪除");
+
+return;
+
+}
+
+setOrders(prev => prev.map(o => (o.id === orderToEdit.id && o.time === orderToEdit.time) ? { ...o, items: finalItems } : o));
+
+setOrderToEdit(null);
+
+setToast("訂單內容已更新！");
+
+}
+
+
+
+function handleDeleteOrder() {
+
+setOrders(prev => prev.filter(o => !(o.id === orderToDelete.id && o.time === orderToDelete.time)));
+
+// 如果目前打開的詳細資料剛好是被刪除的訂單，將其關閉
+
+if (showOrderDetail === (orderToDelete.id + orderToDelete.time)) {
+
+setShowOrderDetail(null);
+
+}
+
+setOrderToD
