@@ -282,7 +282,7 @@ function App() {
   );
 
   const exportText = useMemo(() =>
-    selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
+    "內湖叫貨\n" + selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
     [selectedItems]
   );
 
