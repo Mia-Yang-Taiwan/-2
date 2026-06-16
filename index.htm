@@ -386,7 +386,7 @@ function App() {
     setProducts(prev => prev.filter(p => p.id !== deleteItem.id));
     setQty(prev => { const n = { ...prev }; delete n[deleteItem.id]; return n; });
     setDeleteItem(null);
-    setToast("已刪除");
+    setToast("已刪除！");
   }
 
   // ── Reorder within zone ───────────────────────────────────────────────────────
@@ -435,7 +435,7 @@ function App() {
     }
     setZones(remaining);
     setDeleteZone(null);
-    setToast("區域已刪除");
+    setToast("區域已刪除！");
     if (activeZone === zid) setActiveZone(null);
   }
 
