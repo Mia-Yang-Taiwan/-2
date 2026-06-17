@@ -21,8 +21,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script type="text/babel" data-presets="react">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.43.4/supabase.js"></script>
 const { useState, useMemo, useEffect, useRef, useCallback } = React;
+// ── Supabase 初始化 ──────────────────────────────────────────────────────────
+const SUPABASE_URL = "你的_SUPABASE_PROJECT_URL";
+const SUPABASE_ANON_KEY = "你的_SUPABASE_ANON_PUBLIC_KEY";
 
+// 注意：用 CDN 引入時，全域變數名稱是大寫的 supabase
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
 // ── Default Data ─────────────────────────────────────────────────────────────
 const DEFAULT_ZONES = [
   { id: "A", name: "A 區" },
@@ -123,11 +130,53 @@ const SK_PRODUCTS = "clinic_products_v3";
 const SK_ORDERS = "clinic_orders_v3";
 const SK_ZONES = "clinic_zones_v3";
 
-function load(key, fb) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fb; } catch { return fb; }
+// ── 雲端資料庫操作 (Supabase 備份方案) ─────────────────────────────────────────
+// 對應你原本的 SK_PRODUCTS, SK_ORDERS, SK_ZONES 三個 LocalStorage Key
+// 在 Supabase 中，我們會把這三坨資料存在同一個叫做 "warehouse_data" 的資料表中
+
+async function fetchCloudData() {
+  try {
+    // 嘗試從雲端撈取資料
+    const { data, error } = await supabaseClient
+      .from('warehouse_data')
+      .select('*');
+    
+    if (error) throw error;
+
+    // 如果雲端有資料，轉成前端適用的物件格式
+    if (data && data.length > 0) {
+      const cloudObj = {};
+      data.forEach(row => {
+        cloudObj[row.key] = row.value;
+      });
+      return cloudObj;
+    }
+  } catch (e) {
+    console.error("雲端讀取失敗，將嘗試讀取本地備份:", e);
+  }
+  
+  // 緩衝方案：雲端失敗或沒資料，讀取本地
+  return {
+    [SK_PRODUCTS]: JSON.parse(localStorage.getItem(SK_PRODUCTS)),
+    [SK_ZONES]: JSON.parse(localStorage.getItem(SK_ZONES)),
+    [SK_ORDERS]: JSON.parse(localStorage.getItem(SK_ORDERS)),
+  };
 }
-function save(key, val) {
+
+async function saveCloudData(key, val) {
+  // 1. 同步寫入本機（確保離線時或速度慢時依然有底層數據）
   try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+
+  // 2. 非同步同步到 Supabase 雲端
+  try {
+    const { error } = await supabaseClient
+      .from('warehouse_data')
+      .upsert({ key: key, value: val, updated_at: new Date() }, { onConflict: 'key' });
+    
+    if (error) console.error(`雲端同步失敗 [${key}]:`, error.message);
+  } catch (e) {
+    console.error("雲端網路錯誤:", e);
+  }
 }
 
 // 直接複製文字到剪貼簿（優先用較相容的 execCommand，失敗再用 Clipboard API 補救）
@@ -223,13 +272,45 @@ function Toast({ msg, onDone }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
-  const [products, setProducts] = useState(() => load(SK_PRODUCTS, DEFAULT_PRODUCTS));
-  const [zones, setZones] = useState(() => load(SK_ZONES, DEFAULT_ZONES));
-  const [orders, setOrders] = useState(() => load(SK_ORDERS, []));
+  // 1. 初始化狀態：網頁開起來的第一秒，先吃本機快取或預設值（畫面才不會空白卡住）
+  const [products, setProducts] = useState(() => loadFallback(SK_PRODUCTS, DEFAULT_PRODUCTS));
+  const [zones, setZones] = useState(() => loadFallback(SK_ZONES, DEFAULT_ZONES));
+  const [orders, setOrders] = useState(() => loadFallback(SK_ORDERS, []));
+  
+  // 保留一個純粹讀本機的備份工具（只給上面初始化用）
+  function loadFallback(key, fb) {
+    try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fb; } catch { return fb; }
+  }
+
+  // 這些原本的狀態維持不變
   const [qty, setQty] = useState({});
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("order");
   const [toast, setToast] = useState("");
+
+  // 2. 雲端同步核心：網頁只要一載入完成，立刻去 Supabase 把「別台裝置改的最新版」拉下來
+  useEffect(() => {
+    async function syncOnInit() {
+      setToast("⏳ 正在從雲端同步最新資料...");
+      const cloudData = await fetchCloudData(); // 呼叫我們在步驟三寫好的雲端讀取函式
+      
+      // 如果雲端有最新資料，立刻更新網頁畫面
+      if (cloudData[SK_PRODUCTS]) setProducts(cloudData[SK_PRODUCTS]);
+      if (cloudData[SK_ZONES]) setZones(cloudData[SK_ZONES]);
+      if (cloudData[SK_ORDERS]) setOrders(cloudData[SK_ORDERS]);
+      
+      setToast("☁️ 雲端資料同步完成！");
+    }
+    syncOnInit();
+  }, []); // 這裡的 [] 確保它只在網頁打開時執行「唯一一次」
+
+  // 3. 自動上傳監聽器：只要你在網頁上改了品項、區域、訂單，React 偵測到變動就會自動踢給 Supabase
+  useEffect(() => { saveCloudData(SK_PRODUCTS, products); }, [products]);
+  useEffect(() => { saveCloudData(SK_ZONES, zones); }, [zones]);
+  useEffect(() => { saveCloudData(SK_ORDERS, orders); }, [orders]);
+
+  // ── 接下來後面所有的 manageView, activeZone, 還有所有的 functions ──
+  // ── 全部維持你原本寫的內容，完全不用動！ ──
 
   // manage sub-state
   const [manageView, setManageView] = useState("zones"); // zones | products
