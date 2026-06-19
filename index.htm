@@ -22,26 +22,46 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script type="text/babel" data-presets="react">
 const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
 // ── Supabase Config ───────────────────────────────────────────────────────────
-const SUPABASE_URL = "https://hbtmjkhwhfzrgbniwjii.supabase.co/rest/v1";
+const SUPABASE_URL = "https://hbtmjkhwhfzrgbniwjii.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidG1qa2h3aGZ6cmdibml3amlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Mzg3NjUsImV4cCI6MjA5NzIxNDc2NX0.FpGs-EBTmA-pE9At3PPkDMsk6n82d6d7nMda68WpHjw";
 const TABLE = "warehouse_data";
 
+if (!window.supabase || !window.supabase.createClient) {
+  document.getElementById("root").innerHTML =
+    '<div style="padding:40px 24px;text-align:center;font-family:sans-serif;color:#7c512e;">' +
+    '<div style="font-size:36px;margin-bottom:12px;">⚠️</div>' +
+    '<div style="font-weight:700;font-size:16px;margin-bottom:8px;">系統元件載入失敗</div>' +
+    '<div style="font-size:13px;color:#6b5740;">請檢查網路連線後重新整理頁面（下拉或按 F5）</div>' +
+    '</div>';
+  throw new Error("Supabase SDK failed to load from CDN");
+}
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const sbHeaders = {
   "apikey": SUPABASE_KEY,
-  "Authorization": `Bearer ${SUPABASE_KEY}`,
   "Content-Type": "application/json",
   "Prefer": "return=minimal",
 };
 
+// 取得目前登入者的 access token（REST 直連需要帶這個才能符合 RLS）
+async function getAuthHeader() {
+  const { data } = await sb.auth.getSession();
+  const token = data?.session?.access_token || SUPABASE_KEY;
+  return { ...sbHeaders, "Authorization": `Bearer ${token}` };
+}
+
 // 從 Supabase 讀取一個 key 的 value
 async function sbGet(key) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/${TABLE}?key=eq.${encodeURIComponent(key)}&select=value`, {
-      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    const headers = await getAuthHeader();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?key=eq.${encodeURIComponent(key)}&select=value`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": headers.Authorization }
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -52,9 +72,10 @@ async function sbGet(key) {
 // 寫入或更新一個 key
 async function sbSet(key, value) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/${TABLE}`, {
+    const headers = await getAuthHeader();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`, {
       method: "POST",
-      headers: { ...sbHeaders, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
     });
     return res.ok;
@@ -210,6 +231,10 @@ const IcoDown     = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="
 const IcoBack     = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>;
 const IcoCloud    = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>;
 const IcoSync     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+const IcoUser     = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const IcoLogout   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+const IcoRefresh  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+const IcoLock     = () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
@@ -255,24 +280,130 @@ function Toast({ msg, onDone }) {
 }
 
 // ── Sync Status Badge ─────────────────────────────────────────────────────────
-function SyncBadge({ status }) {
+function SyncBadge({ status, onRefresh }) {
   // status: 'syncing' | 'synced' | 'error' | 'offline'
   const config = {
     syncing: { color: "#F5F5DC", label: "同步中…",   icon: <span className="spin"><IcoSync /></span> },
     synced:  { color: "#FFFFFF", label: "雲端已同步", icon: <IcoCloud /> },
-    error:   { color: "#A52A2A", label: "⚠️同步失敗",   icon: <IcoCloud /> },
+    error:   { color: "#FFD9D2", label: "同步失敗",   icon: <IcoCloud /> },
     offline: { color: "#A9A9A9", label: "離線模式",   icon: <IcoCloud /> },
   };
   const c = config[status] || config.offline;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color: c.color }}>
+    <button onClick={onRefresh} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color: c.color, background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"inherit" }}>
       {c.icon} {c.label}
+      <IcoRefresh />
+    </button>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── AUTH SCREEN ───────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+function AuthScreen({ onAuthed }) {
+  const [mode, setMode] = useState("login"); // login | signup | reset
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  async function handleLogin() {
+    setErr(""); setMsg("");
+    if (!email.trim() || !password) { setErr("請輸入帳號與密碼"); return; }
+    setBusy(true);
+    const { data, error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+    setBusy(false);
+    if (error) { setErr(error.message === "Invalid login credentials" ? "帳號或密碼錯誤" : error.message); return; }
+    onAuthed(data.session);
+  }
+
+  async function handleSignup() {
+    setErr(""); setMsg("");
+    if (!email.trim() || !password) { setErr("請輸入帳號與密碼"); return; }
+    if (password.length < 6) { setErr("密碼至少需要 6 個字元"); return; }
+    setBusy(true);
+    const { data, error } = await sb.auth.signUp({ email: email.trim(), password });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    // 新帳號的 profiles 紀錄由資料庫觸發器（handle_new_user）自動建立，預設角色為 member
+    if (data.session) {
+      onAuthed(data.session);
+    } else {
+      setMsg("註冊成功！請check您的 email 完成驗證後再登入。");
+      setMode("login");
+    }
+  }
+
+  async function handleReset() {
+    setErr(""); setMsg("");
+    if (!email.trim()) { setErr("請輸入您的 email"); return; }
+    setBusy(true);
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim());
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("重設密碼信件已寄出，請check您的 email。");
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, padding:"24px" }}>
+      <div style={{ fontSize:44, marginBottom:6 }}>🏥</div>
+      <div style={{ fontWeight:800, fontSize:21, color:C.header, marginBottom:28 }}>錦禾倉庫叫貨</div>
+
+      <div style={{ width:"100%", maxWidth:340, background:C.surface, borderRadius:16, padding:"24px 20px", border:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:C.sub, marginBottom:18 }}>
+          <IcoLock />
+        </div>
+        <div style={{ textAlign:"center", fontWeight:700, fontSize:16, color:C.text, marginBottom:18 }}>
+          {mode === "login" ? "登入" : mode === "signup" ? "註冊新帳號" : "重設密碼"}
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>Email</div>
+            <input style={inputStyle} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          {mode !== "reset" && (
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>密碼</div>
+              <input style={inputStyle} type="password" placeholder="至少 6 個字元" value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") (mode === "login" ? handleLogin() : handleSignup()); }} />
+            </div>
+          )}
+
+          {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
+          {msg && <div style={{ color:C.addBtn, fontSize:13, fontWeight:600 }}>{msg}</div>}
+
+          {mode === "login" && (
+            <button disabled={busy} onClick={handleLogin} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "登入中…" : "登入"}</button>
+          )}
+          {mode === "signup" && (
+            <button disabled={busy} onClick={handleSignup} style={{ ...btnPrimary, background:C.addBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "註冊中…" : "註冊"}</button>
+          )}
+          {mode === "reset" && (
+            <button disabled={busy} onClick={handleReset} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "寄送中…" : "寄送重設密碼信"}</button>
+          )}
+        </div>
+
+        <div style={{ display:"flex", justifyContent:"center", gap:14, marginTop:18, fontSize:13 }}>
+          {mode !== "login" && <button onClick={() => { setMode("login"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>登入</button>}
+          {mode !== "signup" && <button onClick={() => { setMode("signup"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>註冊帳號</button>}
+          {mode !== "reset" && <button onClick={() => { setMode("reset"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", fontFamily:"inherit" }}>忘記密碼</button>}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
 function App() {
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [myRole, setMyRole] = useState(null); // 'admin' | 'member' | null
+
   const [products, setProducts] = useState(() => localLoad(SK_PRODUCTS, DEFAULT_PRODUCTS));
   const [zones,    setZones]    = useState(() => localLoad(SK_ZONES,    DEFAULT_ZONES));
   const [orders,   setOrders]   = useState(() => localLoad(SK_ORDERS,   []));
@@ -308,40 +439,81 @@ function App() {
   const [form,     setForm]     = useState({ name:"", unit:"", note:"", zone:"A" });
   const [zoneForm, setZoneForm] = useState({ name:"" });
 
-  // ── 啟動時從 Supabase 載入資料 ────────────────────────────────────────────
+  const isAdmin = myRole === "admin";
+
+  // ── 監聽登入狀態 ──────────────────────────────────────────────────────────
   useEffect(() => {
-    async function loadFromCloud() {
-      setIsLoading(true);
-      setSyncStatus("syncing");
-      try {
-        const [cloudProducts, cloudZones, cloudOrders] = await Promise.all([
-          sbGet(SK_PRODUCTS),
-          sbGet(SK_ZONES),
-          sbGet(SK_ORDERS),
-        ]);
-
-        // 如果雲端有資料就用雲端的，否則用 local 的預設值
-        if (cloudProducts) { setProducts(cloudProducts); localSave(SK_PRODUCTS, cloudProducts); }
-        if (cloudZones)    { setZones(cloudZones);       localSave(SK_ZONES,    cloudZones); }
-        if (cloudOrders)   { setOrders(cloudOrders);     localSave(SK_ORDERS,   cloudOrders); }
-
-        setSyncStatus("synced");
-      } catch {
-        setSyncStatus("error");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadFromCloud();
+    sb.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: listener } = sb.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess);
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
+
+  // ── 登入後查詢自己的角色（讀取 profiles 表，註冊時已由資料庫觸發器自動建立）──
+  useEffect(() => {
+    if (!session) { setMyRole(null); return; }
+    (async () => {
+      const { data, error } = await sb.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+      if (!error && data) {
+        setMyRole(data.role || "member");
+      } else {
+        // 理論上註冊時觸發器就會自動建立，這裡只是保險措施
+        setMyRole("member");
+      }
+    })();
+  }, [session]);
+
+  // ── 啟動 / 登入後 從 Supabase 載入資料 ──────────────────────────────────
+  const loadFromCloud = useCallback(async (silent) => {
+    if (!silent) setIsLoading(true);
+    setSyncStatus("syncing");
+    try {
+      const [cloudProducts, cloudZones, cloudOrders] = await Promise.all([
+        sbGet(SK_PRODUCTS),
+        sbGet(SK_ZONES),
+        sbGet(SK_ORDERS),
+      ]);
+
+      if (cloudProducts) { setProducts(cloudProducts); localSave(SK_PRODUCTS, cloudProducts); }
+      if (cloudZones)    { setZones(cloudZones);       localSave(SK_ZONES,    cloudZones); }
+      if (cloudOrders)   { setOrders(cloudOrders);     localSave(SK_ORDERS,   cloudOrders); }
+
+      setSyncStatus("synced");
+    } catch {
+      setSyncStatus("error");
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session) loadFromCloud(false);
+  }, [session, loadFromCloud]);
+
+  // ── 切到「管理品項」或「叫貨」分頁時，靜默重新拉取一次雲端資料 ─────────
+  // 這樣手機/電腦互相切換頁籤時，能看到對方剛新增/刪除的最新品項
+  useEffect(() => {
+    if (session && (tab === "manage" || tab === "order")) {
+      loadFromCloud(true);
+    }
+  }, [tab, session, loadFromCloud]);
+
+  // ── 每 30 秒背景自動同步一次（多人同時使用時降低看到舊資料的機率）──────
+  useEffect(() => {
+    if (!session) return;
+    const t = setInterval(() => loadFromCloud(true), 30000);
+    return () => clearInterval(t);
+  }, [session, loadFromCloud]);
 
   // ── 資料變動時同步到 Supabase + localStorage ──────────────────────────────
   const syncTimeouts = useRef({});
 
-  function debouncedSync(key, value, setter) {
-    // 立即存 local
+  function debouncedSync(key, value) {
     localSave(key, value);
-    // debounce 雲端寫入（500ms）
     clearTimeout(syncTimeouts.current[key]);
     setSyncStatus("syncing");
     syncTimeouts.current[key] = setTimeout(async () => {
@@ -350,7 +522,6 @@ function App() {
     }, 500);
   }
 
-  // 包裝 setProducts/setZones/setOrders 讓每次修改都觸發同步
   function updateProducts(updater) {
     setProducts(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -448,6 +619,7 @@ function App() {
   }
 
   function handleDeleteOrder() {
+    if (!isAdmin) { setToast("僅管理員可刪除訂單"); setOrderToDelete(null); return; }
     updateOrders(prev => prev.filter(o => !(o.id === orderToDelete.id && o.time === orderToDelete.time)));
     if (showOrderDetail === (orderToDelete.id + orderToDelete.time)) setShowOrderDetail(null);
     setOrderToDelete(null);
@@ -472,7 +644,7 @@ function App() {
     const newP = { id: Date.now(), name: form.name.trim(), unit: form.unit.trim(), note: form.note.trim(), zone: form.zone, order: maxOrder + 1 };
     updateProducts(prev => [...prev, newP]);
     setShowAdd(false);
-    setToast("品項已新增！");
+    setToast("品項已新增並同步！");
   }
 
   function saveEdit() {
@@ -482,10 +654,11 @@ function App() {
       : p
     ));
     setEditItem(null);
-    setToast("已更新！");
+    setToast("已更新並同步！");
   }
 
   function confirmDelete() {
+    if (!isAdmin) { setToast("僅管理員可刪除品項"); setDeleteItem(null); return; }
     updateProducts(prev => prev.filter(p => p.id !== deleteItem.id));
     setQty(prev => { const n = { ...prev }; delete n[deleteItem.id]; return n; });
     setDeleteItem(null);
@@ -523,6 +696,7 @@ function App() {
   }
 
   function confirmDeleteZone() {
+    if (!isAdmin) { setToast("僅管理員可刪除區域"); setDeleteZone(null); return; }
     const zid = deleteZone.id;
     const remaining = zones.filter(z => z.id !== zid);
     const fallback = remaining[0]?.id || null;
@@ -540,14 +714,31 @@ function App() {
     setToast("已更新！");
   }
 
+  async function handleLogout() {
+    await sb.auth.signOut();
+    setSession(null);
+    setMyRole(null);
+    setTab("order");
+  }
+
   const tabBar = [
     { key:"order",   label:"叫貨",   icon:<IcoList /> },
     { key:"history", label:"紀錄",   icon:<IcoHistory /> },
     { key:"manage",  label:"管理品項", icon:<IcoSettings /> },
   ];
 
+  // ── 尚未確認登入狀態：顯示空白避免畫面閃爍 ──────────────────────────────
+  if (!authChecked) {
+    return <div style={{ minHeight:"100vh", background:C.bg }} />;
+  }
+
+  // ── 未登入：顯示登入畫面 ─────────────────────────────────────────────────
+  if (!session) {
+    return <AuthScreen onAuthed={setSession} />;
+  }
+
   // ── Loading screen ────────────────────────────────────────────────────────
-  if (isLoading) {
+  if (isLoading || myRole === null) {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, gap:16 }}>
         <div style={{ fontSize:40 }}>🏥</div>
@@ -572,7 +763,17 @@ function App() {
         ) : (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div style={{ fontSize:18, fontWeight:800, letterSpacing:"0.04em" }}>🏥 錦禾倉庫叫貨</div>
-            <SyncBadge status={syncStatus} />
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+              <SyncBadge status={syncStatus} onRefresh={() => loadFromCloud(true)} />
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:10, color:"rgba(255,255,255,0.75)", display:"flex", alignItems:"center", gap:3 }}>
+                  <IcoUser /> {isAdmin ? "管理員" : "成員"}
+                </span>
+                <button onClick={handleLogout} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.75)", cursor:"pointer", display:"flex", alignItems:"center", gap:3, fontSize:10, padding:0, fontFamily:"inherit" }}>
+                  <IcoLogout /> 登出
+                </button>
+              </div>
+            </div>
           </div>
         )}
         {tab === "order" && (
@@ -690,9 +891,11 @@ function App() {
                     <button onClick={() => handleOpenEditOrder(o)} style={{ flex:1, background:C.light, border:"none", borderRadius:8, padding:"7px 14px", fontSize:13, color:C.primary, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontFamily:"inherit" }}>
                       <IcoEdit /> 編輯內容
                     </button>
-                    <button onClick={() => setOrderToDelete(o)} style={{ flex:1, background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 14px", fontSize:13, color:C.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontFamily:"inherit" }}>
-                      <IcoTrash /> 刪除訂單
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => setOrderToDelete(o)} style={{ flex:1, background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 14px", fontSize:13, color:C.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontFamily:"inherit" }}>
+                        <IcoTrash /> 刪除訂單
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -725,8 +928,10 @@ function App() {
                         <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                           <button onClick={() => { setZoneForm({ name: z.name }); setEditZone(z); }}
                             style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
-                          <button onClick={() => setDeleteZone(z)}
-                            style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                          {isAdmin && (
+                            <button onClick={() => setDeleteZone(z)}
+                              style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -773,7 +978,9 @@ function App() {
                       ) : (
                         <>
                           <button onClick={() => openEdit(p)} style={{ background:C.light, border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.primary, display:"flex" }}><IcoEdit /></button>
-                          <button onClick={() => setDeleteItem(p)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                          {isAdmin && (
+                            <button onClick={() => setDeleteItem(p)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 10px", cursor:"pointer", color:C.danger, display:"flex" }}><IcoTrash /></button>
+                          )}
                         </>
                       )}
                     </div>
