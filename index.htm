@@ -235,6 +235,7 @@ const IcoUser     = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="
 const IcoLogout   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 const IcoRefresh  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
 const IcoLock     = () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+const IcoChart    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
@@ -248,12 +249,12 @@ const btnPrimary = {
   fontSize: 15, fontWeight: 700, cursor: "pointer", width: "100%",
 };
 
-function genOrderId(existingOrders) {
-  const now = new Date();
-  const month = now.getMonth() + 1;
+const BRANCHES = ["內湖", "士林", "大直"];
+
+function genOrderId(existingOrders, branch, month) {
   const label = `${month}月`;
-  const sameMonth = existingOrders.filter(o => o.monthLabel === label);
-  return sameMonth.length === 0 ? `${label}叫貨` : `${label}追加`;
+  const samebranchMonth = existingOrders.filter(o => o.branch === branch && o.monthLabel === label);
+  return samebranchMonth.length === 0 ? `${branch} ${label}叫貨` : `${branch} ${label}追加`;
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -298,15 +299,298 @@ function SyncBadge({ status, onRefresh }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── PROFILE MODAL（個人資料／成員管理）────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+const EDGE_FN_URL = `${SUPABASE_URL}/functions/v1/admin-reset-password`;
+
+function ProfileModal({ session, isAdmin, myName, myBranch, onClose, onUpdated, setToast }) {
+  const [view, setView] = useState("profile"); // profile | members
+  const [fullName, setFullName] = useState(myName);
+  const [branch, setBranch] = useState(myBranch);
+  const [email, setEmail] = useState(session.user.email || "");
+  const [showPwd, setShowPwd] = useState(false);
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetBusy, setResetBusy] = useState(false);
+
+  async function loadMembers() {
+    setMembersLoading(true);
+    const { data, error } = await sb.from("profiles").select("id, full_name, branch, role").order("full_name");
+    if (!error && data) setMembers(data);
+    setMembersLoading(false);
+  }
+
+  useEffect(() => {
+    if (view === "members") loadMembers();
+  }, [view]);
+
+  async function saveProfile() {
+    setErr(""); setMsg("");
+    if (!fullName.trim()) { setErr("姓名不可為空"); return; }
+    setBusy(true);
+    const { error } = await sb.from("profiles").update({
+      full_name: fullName.trim(),
+      branch: branch,
+    }).eq("id", session.user.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("已更新！");
+    onUpdated({ full_name: fullName.trim(), branch });
+  }
+
+  async function saveEmail() {
+    setErr(""); setMsg("");
+    if (!email.trim() || email.trim() === session.user.email) { setErr("請輸入新的 Email"); return; }
+    setBusy(true);
+    const { error } = await sb.auth.updateUser(
+      { email: email.trim() },
+      { emailRedirectTo: window.location.origin + window.location.pathname }
+    );
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("驗證信已寄出，請至新信箱完成驗證後 Email 才會更新。");
+  }
+
+  async function savePassword() {
+    setErr(""); setMsg("");
+    if (!currentPwd) { setErr("請輸入目前密碼"); return; }
+    if (!newPwd || newPwd.length < 6) { setErr("新密碼至少需要 6 個字元"); return; }
+    setBusy(true);
+    // 用目前密碼重新驗證身份
+    const { error: verifyErr } = await sb.auth.signInWithPassword({ email: session.user.email, password: currentPwd });
+    if (verifyErr) {
+      setBusy(false);
+      setErr("目前密碼不正確");
+      return;
+    }
+    const { error } = await sb.auth.updateUser({ password: newPwd });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("密碼已更新！");
+    setCurrentPwd(""); setNewPwd("");
+  }
+
+  async function handleResetMemberPassword(member) {
+    setResetBusy(true);
+    try {
+      const { data: { session: curSession } } = await sb.auth.getSession();
+      const res = await fetch(EDGE_FN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${curSession.access_token}`,
+        },
+        body: JSON.stringify({ target_user_id: member.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setToast(result.error || "重設失敗");
+      } else {
+        setToast(`已將「${member.full_name || "該成員"}」的密碼重設為 000000`);
+      }
+    } catch (e) {
+      setToast("重設失敗，請check網路連線");
+    }
+    setResetBusy(false);
+    setResetTarget(null);
+  }
+
+  async function updateMemberBranch(memberId, newBranch) {
+    const { error } = await sb.from("profiles").update({ branch: newBranch }).eq("id", memberId);
+    if (!error) {
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, branch: newBranch } : m));
+      setToast("分院已更新");
+    }
+  }
+
+  return (
+    <Modal title={view === "members" ? "成員管理" : "個人資料"} onClose={onClose}>
+      {isAdmin && (
+        <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+          <button onClick={() => setView("profile")}
+            style={{ flex:1, background: view === "profile" ? C.primary : C.light, color: view === "profile" ? "#fff" : C.text, border:"none", borderRadius:10, padding:"9px 0", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            我的資料
+          </button>
+          <button onClick={() => setView("members")}
+            style={{ flex:1, background: view === "members" ? C.primary : C.light, color: view === "members" ? "#fff" : C.text, border:"none", borderRadius:10, padding:"9px 0", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            成員管理
+          </button>
+        </div>
+      )}
+
+      {view === "profile" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>姓名</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input style={inputStyle} value={fullName} onChange={e => setFullName(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>目前分院</div>
+            <div style={{ position:"relative" }}>
+              <select value={branch} onChange={e => setBranch(e.target.value)}
+                style={{ ...inputStyle, appearance:"none", paddingRight:32 }}>
+                {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:11 }}>▼</span>
+            </div>
+          </div>
+          <button onClick={saveProfile} disabled={busy} style={{ ...btnPrimary, background:C.addBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "儲存中…" : "儲存姓名與分院"}</button>
+
+          <div style={{ height:1, background:C.border, margin:"4px 0" }} />
+
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>Email</div>
+            <input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <button onClick={saveEmail} disabled={busy} style={{ ...btnPrimary, background:C.accent, opacity: busy ? 0.6 : 1 }}>{busy ? "處理中…" : "更新 Email（需驗證）"}</button>
+
+          <div style={{ height:1, background:C.border, margin:"4px 0" }} />
+
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>密碼</div>
+            {!showPwd ? (
+              <button onClick={() => setShowPwd(true)} style={{ ...inputStyle, textAlign:"left", cursor:"pointer", color:C.sub, background:C.bg }}>
+                •••••• <span style={{ fontSize:12, color:C.primary, marginLeft:8 }}>點擊修改</span>
+              </button>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input style={inputStyle} type="password" placeholder="目前密碼" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} />
+                <input style={inputStyle} type="password" placeholder="新密碼（至少 6 個字元）" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => { setShowPwd(false); setCurrentPwd(""); setNewPwd(""); setErr(""); }} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"11px 0", fontSize:14, color:C.text, cursor:"pointer", fontFamily:"inherit" }}>取消</button>
+                  <button onClick={savePassword} disabled={busy} style={{ flex:1, ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "更新中…" : "更新密碼"}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
+          {msg && <div style={{ color:C.addBtn, fontSize:13, fontWeight:600 }}>{msg}</div>}
+        </div>
+      )}
+
+      {view === "members" && isAdmin && (
+        <div>
+          {membersLoading && <div style={{ textAlign:"center", color:C.sub, padding:"20px 0" }}>載入中…</div>}
+          {!membersLoading && (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {members.map((m, idx) => (
+                <div key={m.id} style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:12, padding:"12px 14px", border:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:14, color:C.text }}>{m.full_name || "（未設定姓名）"}{m.role === "admin" ? " 👑" : ""}</div>
+                      <div style={{ fontSize:11, color:C.sub, marginTop:2 }}>密碼：••••••</div>
+                    </div>
+                    <button onClick={() => setResetTarget(m)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 12px", fontSize:12, color:C.danger, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                      重設密碼
+                    </button>
+                  </div>
+                  <div style={{ position:"relative" }}>
+                    <select value={m.branch || "內湖"} onChange={e => updateMemberBranch(m.id, e.target.value)}
+                      style={{ width:"100%", boxSizing:"border-box", appearance:"none", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 28px 7px 10px", fontSize:13, color:C.text, cursor:"pointer", fontFamily:"inherit" }}>
+                      {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", color:C.sub, fontSize:10 }}>▼</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {resetTarget && (
+        <div style={{ position:"fixed", inset:0, zIndex:250, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={() => setResetTarget(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:16, padding:"22px 20px", width:"100%", maxWidth:320 }}>
+            <div style={{ textAlign:"center", fontSize:15, color:C.text, marginBottom:6 }}>確定要重設</div>
+            <div style={{ textAlign:"center", fontSize:17, fontWeight:700, color:C.danger, marginBottom:10 }}>「{resetTarget.full_name || "該成員"}」的密碼？</div>
+            <div style={{ textAlign:"center", fontSize:13, color:C.sub, marginBottom:18 }}>密碼將重設為 000000，該成員下次登入需強制設定新密碼</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setResetTarget(null)} style={{ flex:1, background:C.light, border:"none", borderRadius:10, padding:"12px", fontSize:14, cursor:"pointer", fontFamily:"inherit", color:C.text, fontWeight:600 }}>取消</button>
+              <button onClick={() => handleResetMemberPassword(resetTarget)} disabled={resetBusy} style={{ flex:1, background:C.danger, border:"none", borderRadius:10, padding:"12px", fontSize:14, cursor:"pointer", fontFamily:"inherit", color:"#fff", fontWeight:700, opacity: resetBusy ? 0.6 : 1 }}>{resetBusy ? "處理中…" : "確定重設"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── FORCE CHANGE PASSWORD SCREEN（被管理員重設密碼後強制改密碼）─────────────
+// ════════════════════════════════════════════════════════════════════════════
+function ForceChangePasswordScreen({ onDone }) {
+  const [newPwd, setNewPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSubmit() {
+    setErr("");
+    if (!newPwd || newPwd.length < 6) { setErr("密碼至少需要 6 個字元"); return; }
+    if (newPwd === "000000") { setErr("請設定一組不是 000000 的新密碼"); return; }
+    setBusy(true);
+    const { data: { session } } = await sb.auth.getSession();
+    const { error: pwdErr } = await sb.auth.updateUser({ password: newPwd });
+    if (pwdErr) { setBusy(false); setErr(pwdErr.message); return; }
+    const { error: flagErr } = await sb.from("profiles").update({ must_change_password: false }).eq("id", session.user.id);
+    setBusy(false);
+    if (flagErr) { setErr(flagErr.message); return; }
+    onDone();
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, padding:"24px" }}>
+      <div style={{ fontSize:36, marginBottom:10 }}>🔑</div>
+      <div style={{ width:"100%", maxWidth:340, background:C.surface, borderRadius:16, padding:"24px 20px", border:`1px solid ${C.border}` }}>
+        <div style={{ textAlign:"center", fontWeight:700, fontSize:17, color:C.text, marginBottom:8 }}>請設定新密碼</div>
+        <div style={{ textAlign:"center", fontSize:13, color:C.sub, marginBottom:18 }}>您的密碼已被管理員重設，請設定一組新密碼後繼續使用</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <input style={inputStyle} type="password" placeholder="新密碼（至少 6 個字元）" value={newPwd}
+            onChange={e => setNewPwd(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }} />
+          {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
+          <button onClick={handleSubmit} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "更新中…" : "設定新密碼並繼續"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── AUTH SCREEN ───────────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState("login"); // login | signup | reset
+  const [mode, setMode] = useState("login"); // login | signup | reset | recovery
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  // 偵測網址是否帶有 Supabase 重設密碼的 recovery 參數
+  // （使用者點擊重設密碼信件裡的連結後，會被導回網站並帶這個參數）
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    if (hash.includes("type=recovery") || search.includes("type=recovery")) {
+      setMode("recovery");
+    }
+    const sub = sb.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setMode("recovery");
+    });
+    return () => sub.data.subscription.unsubscribe();
+  }, []);
 
   async function handleLogin() {
     setErr(""); setMsg("");
@@ -320,13 +604,22 @@ function AuthScreen({ onAuthed }) {
 
   async function handleSignup() {
     setErr(""); setMsg("");
+    if (!fullName.trim()) { setErr("請輸入姓名"); return; }
     if (!email.trim() || !password) { setErr("請輸入帳號與密碼"); return; }
     if (password.length < 6) { setErr("密碼至少需要 6 個字元"); return; }
     setBusy(true);
-    const { data, error } = await sb.auth.signUp({ email: email.trim(), password });
+    const { data, error } = await sb.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: window.location.origin + window.location.pathname,
+      }
+    });
     setBusy(false);
     if (error) { setErr(error.message); return; }
-    // 新帳號的 profiles 紀錄由資料庫觸發器（handle_new_user）自動建立，預設角色為 member
+    // 新帳號的 profiles 紀錄由資料庫觸發器（handle_new_user）自動建立，
+    // 觸發器會讀取上面傳的 full_name metadata 寫入 profiles.full_name
     if (data.session) {
       onAuthed(data.session);
     } else {
@@ -339,54 +632,102 @@ function AuthScreen({ onAuthed }) {
     setErr(""); setMsg("");
     if (!email.trim()) { setErr("請輸入您的 email"); return; }
     setBusy(true);
-    const { error } = await sb.auth.resetPasswordForEmail(email.trim());
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
     setBusy(false);
     if (error) { setErr(error.message); return; }
     setMsg("重設密碼信件已寄出，請check您的 email。");
   }
 
+  async function handleSetNewPassword() {
+    setErr(""); setMsg("");
+    if (!newPassword || newPassword.length < 6) { setErr("密碼至少需要 6 個字元"); return; }
+    setBusy(true);
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("密碼已更新！請重新登入。");
+    setTimeout(async () => {
+      await sb.auth.signOut();
+      window.location.hash = "";
+      window.location.search = "";
+      setMode("login");
+      setNewPassword("");
+    }, 1500);
+  }
+
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:C.bg, padding:"24px" }}>
+      <img src="https://www.jinhetcm.com.tw/images/_tw/logo.png" alt="錦禾中醫" style={{ height:56, marginBottom:10, objectFit:"contain" }} />
       <div style={{ fontWeight:800, fontSize:21, color:C.header, marginBottom:28 }}>錦禾倉庫叫貨</div>
 
       <div style={{ width:"100%", maxWidth:340, background:C.surface, borderRadius:16, padding:"24px 20px", border:`1px solid ${C.border}` }}>
-        <div style={{ textAlign:"center", fontWeight:700, fontSize:19, color:C.text, marginBottom:18 }}>
-          {mode === "login" ? "登入" : mode === "signup" ? "註冊新帳號" : "重設密碼"}
-        </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div>
-            <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>Email</div>
-            <input style={inputStyle} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          {mode !== "reset" && (
-            <div>
-              <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>密碼</div>
-              <input style={inputStyle} type="password" placeholder="至少 6 個字元" value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") (mode === "login" ? handleLogin() : handleSignup()); }} />
+        {mode === "recovery" ? (
+          <>
+            <div style={{ textAlign:"center", fontWeight:700, fontSize:19, color:C.text, marginBottom:18 }}>設定新密碼</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>新密碼</div>
+                <input style={inputStyle} type="password" placeholder="至少 6 個字元" value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleSetNewPassword(); }} />
+              </div>
+              {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
+              {msg && <div style={{ color:C.addBtn, fontSize:13, fontWeight:600 }}>{msg}</div>}
+              <button disabled={busy} onClick={handleSetNewPassword} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "更新中…" : "更新密碼"}</button>
             </div>
-          )}
+          </>
+        ) : (
+          <>
+            {mode !== "login" && (
+              <div style={{ textAlign:"center", fontWeight:700, fontSize:19, color:C.text, marginBottom:18 }}>
+                {mode === "signup" ? "註冊新帳號" : "重設密碼"}
+              </div>
+            )}
 
-          {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
-          {msg && <div style={{ color:C.addBtn, fontSize:13, fontWeight:600 }}>{msg}</div>}
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {mode === "signup" && (
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>姓名</div>
+                  <input style={inputStyle} placeholder="您的姓名" value={fullName} onChange={e => setFullName(e.target.value)} />
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>Email</div>
+                <input style={inputStyle} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+              </div>
+              {mode !== "reset" && (
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:C.sub, marginBottom:6 }}>密碼</div>
+                  <input style={inputStyle} type="password" placeholder="至少 6 個字元" value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") (mode === "login" ? handleLogin() : handleSignup()); }} />
+                </div>
+              )}
 
-          {mode === "login" && (
-            <button disabled={busy} onClick={handleLogin} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "登入中…" : "登入"}</button>
-          )}
-          {mode === "signup" && (
-            <button disabled={busy} onClick={handleSignup} style={{ ...btnPrimary, background:C.addBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "註冊中…" : "註冊"}</button>
-          )}
-          {mode === "reset" && (
-            <button disabled={busy} onClick={handleReset} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "寄送中…" : "寄送重設密碼信"}</button>
-          )}
-        </div>
+              {err && <div style={{ color:C.danger, fontSize:13, fontWeight:600 }}>{err}</div>}
+              {msg && <div style={{ color:C.addBtn, fontSize:13, fontWeight:600 }}>{msg}</div>}
 
-        <div style={{ display:"flex", justifyContent:"center", gap:14, marginTop:18, fontSize:13 }}>
-          {mode !== "login" && <button onClick={() => { setMode("login"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>登入</button>}
-          {mode !== "signup" && <button onClick={() => { setMode("signup"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>註冊帳號</button>}
-          {mode !== "reset" && <button onClick={() => { setMode("reset"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", fontFamily:"inherit" }}>忘記密碼</button>}
-        </div>
+              {mode === "login" && (
+                <button disabled={busy} onClick={handleLogin} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "登入中…" : "登入"}</button>
+              )}
+              {mode === "signup" && (
+                <button disabled={busy} onClick={handleSignup} style={{ ...btnPrimary, background:C.addBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "註冊中…" : "註冊"}</button>
+              )}
+              {mode === "reset" && (
+                <button disabled={busy} onClick={handleReset} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>{busy ? "寄送中…" : "寄送重設密碼信"}</button>
+              )}
+            </div>
+
+            <div style={{ display:"flex", justifyContent:"center", gap:14, marginTop:18, fontSize:13 }}>
+              {mode !== "login" && <button onClick={() => { setMode("login"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>登入</button>}
+              {mode !== "signup" && <button onClick={() => { setMode("signup"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>註冊帳號</button>}
+              {mode !== "reset" && <button onClick={() => { setMode("reset"); setErr(""); setMsg(""); }} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", fontFamily:"inherit" }}>忘記密碼</button>}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -400,12 +741,15 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [myRole, setMyRole] = useState(null); // 'admin' | 'member' | null
   const [myName, setMyName] = useState("");
+  const [myBranch, setMyBranch] = useState("內湖");
 
   const [products, setProducts] = useState(() => localLoad(SK_PRODUCTS, DEFAULT_PRODUCTS));
   const [zones,    setZones]    = useState(() => localLoad(SK_ZONES,    DEFAULT_ZONES));
   const [orders,   setOrders]   = useState(() => localLoad(SK_ORDERS,   []));
   const [qty,      setQty]      = useState({});
   const [search,   setSearch]   = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+  const [summaryDetail, setSummaryDetail] = useState(null);
   const [tab,      setTab]      = useState("order");
   const [toast,    setToast]    = useState("");
 
@@ -436,6 +780,10 @@ function App() {
   const [form,     setForm]     = useState({ name:"", unit:"", note:"", zone:"A" });
   const [zoneForm, setZoneForm] = useState({ name:"" });
 
+  // 個人資料 / 成員管理
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+
   const isAdmin = myRole === "admin";
 
   // ── 監聽登入狀態 ──────────────────────────────────────────────────────────
@@ -450,18 +798,22 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ── 登入後查詢自己的角色與姓名（讀取 profiles 表，註冊時已由資料庫觸發器自動建立）──
+  // ── 登入後查詢自己的角色、姓名、分院、是否需強制改密碼（讀取 profiles 表）──
   useEffect(() => {
-    if (!session) { setMyRole(null); setMyName(""); return; }
+    if (!session) { setMyRole(null); setMyName(""); setMyBranch("內湖"); setMustChangePassword(false); return; }
     (async () => {
-      const { data, error } = await sb.from("profiles").select("role, full_name").eq("id", session.user.id).maybeSingle();
+      const { data, error } = await sb.from("profiles").select("role, full_name, branch, must_change_password").eq("id", session.user.id).maybeSingle();
       if (!error && data) {
         setMyRole(data.role || "member");
         setMyName(data.full_name || "");
+        setMyBranch(data.branch || "內湖");
+        setMustChangePassword(!!data.must_change_password);
       } else {
         // 理論上註冊時觸發器就會自動建立，這裡只是保險措施
         setMyRole("member");
         setMyName("");
+        setMyBranch("內湖");
+        setMustChangePassword(false);
       }
     })();
   }, [session]);
@@ -565,8 +917,8 @@ function App() {
   );
 
   const exportText = useMemo(() =>
-    "內湖叫貨\n" + selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
-    [selectedItems]
+    `${myBranch}叫貨\n` + selectedItems.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
+    [selectedItems, myBranch]
   );
 
   const zoneProducts = useMemo(() => {
@@ -576,14 +928,37 @@ function App() {
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [products, activeZone]);
 
+  // ── 管理員：當月所有分院叫貨加總 ─────────────────────────────────────────
+  const currentMonthLabel = useMemo(() => `${new Date().getMonth() + 1}月`, []);
+
+  const monthlySummary = useMemo(() => {
+    const thisMonthOrders = orders.filter(o => o.monthLabel === currentMonthLabel);
+    const map = {}; // name -> { name, unit, qty, branches: { branchName: qty } }
+    thisMonthOrders.forEach(o => {
+      const branchName = o.branch || "內湖";
+      o.items.forEach(item => {
+        if (!map[item.name]) map[item.name] = { name: item.name, unit: item.unit, qty: 0, branches: {} };
+        map[item.name].qty += item.qty;
+        map[item.name].branches[branchName] = (map[item.name].branches[branchName] || 0) + item.qty;
+      });
+    });
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, "zh-TW"));
+  }, [orders, currentMonthLabel]);
+
+  const monthlySummaryText = useMemo(() =>
+    `${currentMonthLabel}叫貨\n` + monthlySummary.map(i => `${i.name} * ${i.qty}${i.unit}`).join("\n"),
+    [monthlySummary, currentMonthLabel]
+  );
+
   // ── Order submit ──────────────────────────────────────────────────────────
   function handleSubmitOrder() {
     if (selectedItems.length === 0) { setToast("請先選擇品項數量"); return; }
     const now = new Date();
-    const monthLabel = `${now.getMonth() + 1}月`;
-    const id = genOrderId(orders);
+    const month = now.getMonth() + 1;
+    const monthLabel = `${month}月`;
+    const id = genOrderId(orders, myBranch, month);
     const order = {
-      id, monthLabel,
+      id, monthLabel, branch: myBranch,
       time: now.toLocaleString("zh-TW", { hour12: false }),
       items: selectedItems.map(i => ({ name: i.name, qty: i.qty, unit: i.unit })),
     };
@@ -724,6 +1099,7 @@ function App() {
     { key:"order",   label:"叫貨",   icon:<IcoList /> },
     { key:"history", label:"紀錄",   icon:<IcoHistory /> },
     { key:"manage",  label:"管理品項", icon:<IcoSettings /> },
+    ...(isAdmin ? [{ key:"summary", label:"總覽", icon:<IcoChart /> }] : []),
   ];
 
   // ── 尚未確認登入狀態：顯示空白避免畫面閃爍 ──────────────────────────────
@@ -747,6 +1123,11 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  // ── 帳號被管理員重設密碼後，強制要求設定新密碼才能繼續使用 ──────────────
+  if (mustChangePassword) {
+    return <ForceChangePasswordScreen onDone={() => setMustChangePassword(false)} />;
   }
 
   return (
@@ -773,9 +1154,9 @@ function App() {
                 : "\u00A0"}
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.75)", display:"flex", alignItems:"center", gap:3 }}>
+              <button onClick={() => setShowProfile(true)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.75)", cursor:"pointer", display:"flex", alignItems:"center", gap:3, fontSize:10, padding:0, fontFamily:"inherit" }}>
                 <IcoUser /> {myName || (isAdmin ? "管理員" : "成員")}
-              </span>
+              </button>
               <button onClick={handleLogout} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.75)", cursor:"pointer", display:"flex", alignItems:"center", gap:3, fontSize:10, padding:0, fontFamily:"inherit" }}>
                 <IcoLogout /> 登出
               </button>
@@ -858,10 +1239,19 @@ function App() {
       {/* ══════════════ HISTORY TAB ══════════════ */}
       {tab === "history" && (
         <div style={{ padding:"14px 16px 90px", display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ background:C.surface, borderRadius:12, display:"flex", alignItems:"center", padding:"9px 14px", gap:8, border:`1px solid ${C.border}`, marginBottom:2 }}>
+            <span style={{ color:C.sub }}><IcoSearch /></span>
+            <input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="搜尋叫貨編號…"
+              style={{ border:"none", outline:"none", fontSize:15, flex:1, color:C.text, background:"transparent", fontFamily:"inherit" }} />
+            {historySearch && <button onClick={() => setHistorySearch("")} style={{ background:"none", border:"none", color:C.sub, cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>}
+          </div>
           {orders.length === 0 && (
             <div style={{ textAlign:"center", color:C.sub, paddingTop:60 }}>還沒有叫貨紀錄</div>
           )}
-          {orders.map(o => (
+          {orders.length > 0 && orders.filter(o => o.id.includes(historySearch)).length === 0 && (
+            <div style={{ textAlign:"center", color:C.sub, paddingTop:40 }}>找不到符合的叫貨編號</div>
+          )}
+          {orders.filter(o => o.id.includes(historySearch)).map(o => (
             <div key={o.id + o.time} style={{ background:C.rowA, borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}` }}>
               <div onClick={() => setShowOrderDetail(showOrderDetail === (o.id+o.time) ? null : (o.id+o.time))}
                 style={{ padding:"13px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
@@ -995,6 +1385,39 @@ function App() {
                 <div style={{ textAlign:"center", color:C.sub, fontSize:12, marginTop:16 }}>長按品項可調整順序</div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ SUMMARY TAB（管理員：當月跨分院加總）══════════════ */}
+      {tab === "summary" && isAdmin && (
+        <div style={{ padding:"14px 16px 110px" }}>
+          <div style={{ fontWeight:700, fontSize:16, color:C.text, marginBottom:4 }}>{currentMonthLabel}叫貨總覽</div>
+          <div style={{ fontSize:12, color:C.sub, marginBottom:14 }}>所有分院本月叫貨品項加總，點品項可看分院明細</div>
+
+          {monthlySummary.length === 0 && (
+            <div style={{ textAlign:"center", color:C.sub, paddingTop:60 }}>本月還沒有任何分院叫貨</div>
+          )}
+
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {monthlySummary.map((item, idx) => (
+              <div key={item.name} onClick={() => setSummaryDetail(item)}
+                style={{ background: idx % 2 === 0 ? C.rowA : C.rowB, borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", border:`1px solid ${C.border}`, cursor:"pointer" }}>
+                <div style={{ fontWeight:600, fontSize:15, color:C.text }}>{item.name}</div>
+                <div style={{ fontWeight:700, fontSize:15, color:C.primary }}>{item.qty} {item.unit}</div>
+              </div>
+            ))}
+          </div>
+
+          {monthlySummary.length > 0 && (
+            <div style={{ position:"fixed", bottom:66, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, padding:"10px 16px", background:`linear-gradient(to top, ${C.bg} 60%, transparent)` }}>
+              <button onClick={() => {
+                copyTextToClipboard(monthlySummaryText);
+                setToast(`已複製${currentMonthLabel}叫貨總覽！`);
+              }} style={{ ...btnPrimary, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <IcoCopy /> 複製{currentMonthLabel}叫貨所有品項
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -1190,6 +1613,37 @@ function App() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── SUMMARY DETAIL MODAL（品項的分院明細）── */}
+      {summaryDetail && (
+        <Modal title={summaryDetail.name} onClose={() => setSummaryDetail(null)}>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {Object.entries(summaryDetail.branches).map(([branchName, q]) => (
+              <div key={branchName} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.bg, borderRadius:10, padding:"10px 14px", border:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:14, color:C.text, fontWeight:600 }}>{branchName}</span>
+                <span style={{ fontSize:14, fontWeight:700, color:C.primary }}>{q} {summaryDetail.unit}</span>
+              </div>
+            ))}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", marginTop:4, borderTop:`1px dashed ${C.border}` }}>
+              <span style={{ fontSize:14, color:C.sub, fontWeight:700 }}>合計</span>
+              <span style={{ fontSize:15, fontWeight:800, color:C.primary }}>{summaryDetail.qty} {summaryDetail.unit}</span>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── PROFILE / MEMBERS MODAL ── */}
+      {showProfile && (
+        <ProfileModal
+          session={session}
+          isAdmin={isAdmin}
+          myName={myName}
+          myBranch={myBranch}
+          onClose={() => setShowProfile(false)}
+          onUpdated={({ full_name, branch }) => { setMyName(full_name); setMyBranch(branch); }}
+          setToast={setToast}
+        />
       )}
 
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
