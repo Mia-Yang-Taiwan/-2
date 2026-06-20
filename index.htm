@@ -320,10 +320,30 @@ function ProfileModal({ session, isAdmin, myName, myBranch, onClose, onUpdated, 
   const [resetTarget, setResetTarget] = useState(null);
   const [resetBusy, setResetBusy] = useState(false);
 
+  // 統一呼叫 Edge Function 的小工具
+  async function callAdminFn(payload) {
+    const { data: { session: curSession } } = await sb.auth.getSession();
+    const res = await fetch(EDGE_FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${curSession.access_token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "操作失敗");
+    return result;
+  }
+
   async function loadMembers() {
     setMembersLoading(true);
-    const { data, error } = await sb.from("profiles").select("id, full_name, branch, role").order("full_name");
-    if (!error && data) setMembers(data);
+    try {
+      const result = await callAdminFn({ action: "list_members" });
+      setMembers(result.members || []);
+    } catch (e) {
+      setToast(e.message || "成員列表載入失敗");
+    }
     setMembersLoading(false);
   }
 
@@ -380,33 +400,25 @@ function ProfileModal({ session, isAdmin, myName, myBranch, onClose, onUpdated, 
   async function handleResetMemberPassword(member) {
     setResetBusy(true);
     try {
-      const { data: { session: curSession } } = await sb.auth.getSession();
-      const res = await fetch(EDGE_FN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${curSession.access_token}`,
-        },
-        body: JSON.stringify({ target_user_id: member.id }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        setToast(result.error || "重設失敗");
-      } else {
-        setToast(`已將「${member.full_name || "該成員"}」的密碼重設為 000000`);
-      }
+      await callAdminFn({ action: "reset_password", target_user_id: member.id });
+      setToast(`已將「${member.full_name || "該成員"}」的密碼重設為 000000`);
     } catch (e) {
-      setToast("重設失敗，請check網路連線");
+      setToast(e.message || "重設失敗，請check網路連線");
     }
     setResetBusy(false);
     setResetTarget(null);
   }
 
   async function updateMemberBranch(memberId, newBranch) {
-    const { error } = await sb.from("profiles").update({ branch: newBranch }).eq("id", memberId);
-    if (!error) {
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, branch: newBranch } : m));
+    // 先樂觀更新畫面，失敗再復原，介面反應比較快
+    const prevMembers = members;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, branch: newBranch } : m));
+    try {
+      await callAdminFn({ action: "update_branch", target_user_id: memberId, branch: newBranch });
       setToast("分院已更新");
+    } catch (e) {
+      setMembers(prevMembers);
+      setToast(e.message || "分院更新失敗");
     }
   }
 
@@ -488,6 +500,7 @@ function ProfileModal({ session, isAdmin, myName, myBranch, onClose, onUpdated, 
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <div>
                       <div style={{ fontWeight:700, fontSize:14, color:C.text }}>{m.full_name || "（未設定姓名）"}{m.role === "admin" ? " 👑" : ""}</div>
+                      <div style={{ fontSize:11, color:C.sub, marginTop:2 }}>{m.email}</div>
                       <div style={{ fontSize:11, color:C.sub, marginTop:2 }}>密碼：••••••</div>
                     </div>
                     <button onClick={() => setResetTarget(m)} style={{ background:"#FEF2F2", border:"none", borderRadius:8, padding:"7px 12px", fontSize:12, color:C.danger, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -568,8 +581,8 @@ function ForceChangePasswordScreen({ onDone }) {
 // ════════════════════════════════════════════════════════════════════════════
 // ── AUTH SCREEN ───────────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
-function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState("login"); // login | signup | reset | recovery
+function AuthScreen({ onAuthed, forceRecovery, onRecoveryDone }) {
+  const [mode, setMode] = useState(forceRecovery ? "recovery" : "login"); // login | signup | reset | recovery
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -581,6 +594,7 @@ function AuthScreen({ onAuthed }) {
   // 偵測網址是否帶有 Supabase 重設密碼的 recovery 參數
   // （使用者點擊重設密碼信件裡的連結後，會被導回網站並帶這個參數）
   useEffect(() => {
+    if (forceRecovery) { setMode("recovery"); return; }
     const hash = window.location.hash || "";
     const search = window.location.search || "";
     if (hash.includes("type=recovery") || search.includes("type=recovery")) {
@@ -645,16 +659,20 @@ function AuthScreen({ onAuthed }) {
     if (!newPassword || newPassword.length < 6) { setErr("密碼至少需要 6 個字元"); return; }
     setBusy(true);
     const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) { setBusy(false); setErr(error.message); return; }
+    // 重設密碼後也順手清除 must_change_password 旗標（如果有的話）
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) {
+      await sb.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+    }
+    await sb.auth.signOut();
     setBusy(false);
-    if (error) { setErr(error.message); return; }
     setMsg("密碼已更新！請重新登入。");
-    setTimeout(async () => {
-      await sb.auth.signOut();
-      window.location.hash = "";
-      window.location.search = "";
-      setMode("login");
-      setNewPassword("");
-    }, 1500);
+    setNewPassword("");
+    setTimeout(() => {
+      if (onRecoveryDone) onRecoveryDone();
+      else { setMode("login"); }
+    }, 1200);
   }
 
   return (
@@ -787,12 +805,22 @@ function App() {
   const isAdmin = myRole === "admin";
 
   // ── 監聽登入狀態 ──────────────────────────────────────────────────────────
+  // isRecoveryMode：使用者點擊「重設密碼信」裡的連結進來時，Supabase 會自動
+  // 建立一個暫時的 session，但這不代表使用者「正常登入」了 —— 必須先導向
+  // 設定新密碼的畫面，不能直接放行進主畫面。
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    return hash.includes("type=recovery") || search.includes("type=recovery");
+  });
+
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthChecked(true);
     });
-    const { data: listener } = sb.auth.onAuthStateChange((_event, sess) => {
+    const { data: listener } = sb.auth.onAuthStateChange((event, sess) => {
+      if (event === "PASSWORD_RECOVERY") setIsRecoveryMode(true);
       setSession(sess);
     });
     return () => listener.subscription.unsubscribe();
@@ -1105,6 +1133,15 @@ function App() {
   // ── 尚未確認登入狀態：顯示空白避免畫面閃爍 ──────────────────────────────
   if (!authChecked) {
     return <div style={{ minHeight:"100vh", background:C.bg }} />;
+  }
+
+  // ── 重設密碼連結點進來：強制走「設定新密碼」流程，不可直接放行進主畫面 ──
+  if (isRecoveryMode) {
+    return <AuthScreen onAuthed={setSession} forceRecovery onRecoveryDone={() => {
+      setIsRecoveryMode(false);
+      setSession(null);
+      window.history.replaceState(null, "", window.location.pathname);
+    }} />;
   }
 
   // ── 未登入：顯示登入畫面 ─────────────────────────────────────────────────
